@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EAMS 教务管理后台</title>
+    <link rel="stylesheet" href="/static/css/common.css">
+    <link rel="stylesheet" href="/static/css/dashboard.css">
+</head>
+<body>
+    <div class="layout">
+        <header class="topbar">
+            <div class="topbar-left">
+                <div class="logo">E</div>
+                <span class="title">EAMS 学校教务管理系统</span>
+            </div>
+            <div class="topbar-right">
+                <span id="userInfo">未登录</span>
+                <a href="/static/login.html" onclick="logout()">退出</a>
+            </div>
+        </header>
+
+        <div class="main">
+            <aside class="sidebar">
+                <ul>
+                    <li class="active" data-panel="home" onclick="switchTab('home')">首页</li>
+                    <li data-panel="students" onclick="switchTab('students')">学生管理</li>
+                    <li data-panel="teachers" onclick="switchTab('teachers')">教师管理</li>
+                    <li data-panel="courses" onclick="switchTab('courses')">课程管理</li>
+                    <li data-panel="classes" onclick="switchTab('classes')">班级管理</li>
+                    <li data-panel="zhicheng" onclick="switchTab('zhicheng')">职称管理</li>
+                </ul>
+            </aside>
+
+            <section class="content">
+                <!-- 首页面板（欢迎语 + 统计） -->
+                <div id="home" class="panel active">
+                    <div class="welcome">
+                        <h1 id="welcomeTitle">欢迎回来</h1>
+                        <p id="welcomeSub">这里是 EAMS 学校教务管理系统</p>
+                    </div>
+                    <div class="stat-cards">
+                        <div class="stat-card">
+                            <div class="num" id="studentCount">0</div>
+                            <div class="label">学生总数</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="num" id="teacherCount">0</div>
+                            <div class="label">教师总数</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="num" id="courseCount">0</div>
+                            <div class="label">课程总数</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="num" id="classCount">0</div>
+                            <div class="label">班级总数</div>
+                        </div>
+                    </div>
+                    <!-- 统计分析图表 -->
+                    <div class="chart-row">
+                        <div class="card chart-card">
+                            <h2>各班级人数统计</h2>
+                            <div id="classChart" class="chart"></div>
+                        </div>
+                        <div class="card chart-card">
+                            <h2>在校学生男女占比</h2>
+                            <div id="genderChart" class="chart"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 学生管理面板 -->
+                <div id="students" class="panel">
+                    <div class="card">
+                        <h2>学生管理（含分班、选老师）</h2>
+                        <div class="toolbar">
+                            <input id="stuKeyword" placeholder="按姓名搜索">
+                            <button class="btn" onclick="searchStudents()">查询</button>
+                            <button class="btn" onclick="resetStudents()">重置</button>
+                            <button class="btn btn-blue" onclick="openStudentModal('add')">新增学生</button>
+                        </div>
+                        <table>
+                            <thead><tr><th>ID</th><th>姓名</th><th>性别</th><th>年龄</th><th>年级</th><th>班级</th><th>老师</th><th>选课数</th><th>操作</th></tr></thead>
+                            <tbody id="studentBody"></tbody>
+                        </table>
+                        <div class="pagination" id="stuPager"></div>
+                    </div>
+                </div>
+
+                <!-- 教师管理面板 -->
+                <div id="teachers" class="panel">
+                    <div class="card">
+                        <h2>教师管理</h2>
+                        <div class="toolbar">
+                            <input id="teaKeyword" placeholder="按姓名搜索">
+                            <button class="btn" onclick="searchTeachers()">查询</button>
+                            <button class="btn" onclick="resetTeachers()">重置</button>
+                            <button class="btn btn-blue" onclick="openTeacherModal('add')">新增教师</button>
+                        </div>
+                        <table>
+                            <thead><tr><th>ID</th><th>姓名</th><th>性别</th><th>年龄</th><th>科目</th><th>电话</th><th>职称</th><th>基本工资</th><th>课时费</th><th>奖金</th><th>授课</th><th>班级</th><th>学生</th><th>操作</th></tr></thead>
+                            <tbody id="teacherBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- 课程管理面板 -->
+                <div id="courses" class="panel">
+                    <div class="card">
+                        <h2>课程管理（学生选课）</h2>
+                        <div class="toolbar">
+                            <input id="couKeyword" placeholder="按课程名搜索">
+                            <button class="btn" onclick="searchCourses()">查询</button>
+                            <button class="btn" onclick="resetCourses()">重置</button>
+                            <button class="btn btn-green" onclick="openViewStudentCourses()">查看学生选课</button>
+                            <button class="btn btn-blue" onclick="openCourseModal('add')">新增课程</button>
+                        </div>
+                        <table>
+                            <thead><tr><th>ID</th><th>课程名</th><th>学分</th><th>授课教师</th><th>操作</th></tr></thead>
+                            <tbody id="courseBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- 班级管理面板 -->
+                <div id="classes" class="panel">
+                    <div class="card">
+                        <h2>班级管理</h2>
+                        <div class="toolbar">
+                            <input id="clsKeyword" placeholder="按班级名搜索">
+                            <button class="btn" onclick="searchClasses()">查询</button>
+                            <button class="btn" onclick="resetClasses()">重置</button>
+                            <button class="btn btn-blue" onclick="openClassModal('add')">新增班级</button>
+                        </div>
+                        <table>
+                            <thead><tr><th>ID</th><th>班级名</th><th>年级</th><th>班主任</th><th>操作</th></tr></thead>
+                            <tbody id="classBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- 职称管理面板 -->
+                <div id="zhicheng" class="panel">
+                    <div class="card">
+                        <h2>职称管理</h2>
+                        <div class="toolbar">
+                            <input id="zcKeyword" placeholder="按职称名搜索">
+                            <button class="btn" onclick="searchZhicheng()">查询</button>
+                            <button class="btn" onclick="resetZhicheng()">重置</button>
+                            <button class="btn btn-blue" onclick="openZhichengModal('add')">新增职称</button>
+                        </div>
+                        <table>
+                            <thead><tr><th>ID</th><th>职称</th><th>级别</th><th>说明</th><th>对应教师</th><th>操作</th></tr></thead>
+                            <tbody id="zhichengBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </div>
+
+    <!-- 通用弹框 -->
+    <div id="modal" class="modal-mask">
+        <div class="modal">
+            <div class="modal-header">
+                <span id="modalTitle">标题</span>
+                <button class="modal-close" onclick="closeModal()">×</button>
+            </div>
+            <div id="modalBody" class="modal-body"></div>
+            <div class="modal-footer">
+                <button class="btn btn-blue" id="modalOk">确定</button>
+                <button class="btn" onclick="closeModal()">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/js/vendor/echarts.min.js"></script>
+    <script src="/static/js/common.js"></script>
+    <script src="/static/js/dashboard.js"></script>
+</body>
+</html>

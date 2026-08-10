@@ -1,0 +1,18 @@
+# EAMS Docker 构建忽略清单：避免将无关/敏感内容打入镜像
+
+# Python 虚拟环境与缓存
+.venv
+__pycache__
+*.pyc
+
+# 日志与本地数据
+logs
+
+# IDE 配置
+.idea
+
+# 文档（不进入运行镜像）
+docs
+
+# 其它本地产物
+*.log

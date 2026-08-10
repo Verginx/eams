@@ -1,0 +1,50 @@
+/* EAMS 认证页共用（登录 / 注册）
+   全屏居中 + 白卡片 + 品牌区
+   注意：需在 common.css 之后引入，以覆盖 .btn 为全宽主按钮 */
+
+body {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+}
+
+.card {
+    background: #fff;
+    width: 400px;
+    padding: 40px 36px 32px;
+    border-radius: 8px;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+}
+
+.brand { text-align: center; margin-bottom: 28px; }
+.brand .logo {
+    width: 44px;
+    height: 44px;
+    margin: 0 auto 12px;
+    border-radius: 8px;
+    background: #1890ff;
+    color: #fff;
+    font-size: 24px;
+    font-weight: 700;
+    line-height: 44px;
+    text-align: center;
+}
+.brand h1 { font-size: 20px; color: #333; font-weight: 600; }
+.brand p { margin-top: 4px; font-size: 13px; color: #999; }
+
+/* 全宽主按钮（覆盖 common.css 中 .btn） */
+.btn {
+    width: 100%;
+    height: 42px;
+    margin-top: 6px;
+    border: none;
+    border-radius: 6px;
+    background: #1890ff;
+    color: #fff;
+    font-size: 15px;
+    cursor: pointer;
+    transition: background .2s;
+}
+.btn:hover { background: #40a9ff; }
+.btn:active { background: #096dd9; }

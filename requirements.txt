@@ -1,0 +1,8 @@
+# EAMS 后端运行依赖
+# 说明：以下依赖均被项目代码实际使用，请勿随意删除
+
+fastapi>=0.110.0          # Web 框架（main.py / 各模块 router / exceptions）
+uvicorn>=0.29.0           # ASGI 服务器（main.py __main__ 启动块）
+pydantic>=2.6.0           # 请求参数校验 VO（各模块 vo.py 的 BaseModel/Field）
+pymysql>=1.1.0            # MySQL 驱动（common/db.py）
+pydantic-settings>=2.0    # .env 配置读取（common/config.py）

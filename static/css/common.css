@@ -1,0 +1,48 @@
+/* EAMS 公共样式（三页共用）
+   reset / 设计基础 / 表单 / 按钮 / 提示与链接 */
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+    font-family: "Microsoft YaHei", sans-serif;
+    background: #f5f7fa;
+}
+
+/* ===== 表单 ===== */
+.field { margin-bottom: 16px; }
+.field input, .field select {
+    width: 100%;
+    height: 42px;
+    padding: 0 12px;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    font-size: 14px;
+    color: #333;
+    outline: none;
+    transition: border-color .2s, box-shadow .2s;
+}
+.field input:focus, .field select:focus {
+    border-color: #1890ff;
+    box-shadow: 0 0 0 3px rgba(24, 144, 255, 0.12);
+}
+
+/* ===== 按钮（后台小按钮；认证页由 auth.css 覆盖为全宽主按钮） ===== */
+.btn {
+    padding: 6px 14px;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+    transition: opacity .2s;
+}
+.btn:hover { opacity: 0.85; }
+.btn-blue { background: #1890ff; color: #fff; }
+.btn-green { background: #52c41a; color: #fff; }
+.btn-orange { background: #fa8c16; color: #fff; }
+.btn-red { background: #ff4d4f; color: #fff; }
+
+/* ===== 提示与链接 ===== */
+.msg { min-height: 20px; margin-bottom: 10px; text-align: center; font-size: 14px; color: #ff4d4f; }
+.tip { margin-top: 18px; text-align: center; font-size: 13px; color: #666; }
+.tip a { color: #1890ff; text-decoration: none; }
+.tip a:hover { text-decoration: underline; }
