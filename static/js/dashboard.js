@@ -325,7 +325,6 @@ async function delStudent(id) {
 // ===== 学生回收站（管理员专属） =====
 /** 打开回收站弹框：分页列出已删除学生，支持恢复 / 真实删除 */
 async function openRecycleModal(page = 1) {
-    if (!isAdmin) { showToast('回收站操作仅管理员可用', 'error'); return; }
     const data = await api(`/students/recycle/list?keyword=&page=${page}&page_size=${STU_PAGE_SIZE}`, 'GET', null, { 'X-Current-Role': 'admin' });
     const list = (data && data.items) || [];
     const total = (data && data.total) || 0;
