@@ -4,7 +4,9 @@
 
 职责：封装 teachers 表 SQL 操作（增删改查 + 按姓名关键字查询），关联职称与统计
 包含：职称名（LEFT JOIN zhicheng）、授课课程数、班主任班级数、所带学生数（子查询）、课时费总额
-课时费总额 = 单价 × 所带学生数（student_count = 选择该教师所授课程的去重学生数）
+课时费总额 = 单价 × 所带学生数（student_count = 选择该教师所授课程的去重在校学生数）
+注意：此处"所带学生数"经选课表（student_course→courses.teacher_id）统计，
+与 students.teacher_id 的"选老师"直连关系相互独立；统计已过滤回收站学生（is_deleted=0）
 依赖：common.db.Database
 """
 from com.wanhe.common.db import Database
@@ -19,19 +21,23 @@ class TeacherModel:
         :return: (sql, params)：sql 不含 WHERE/ORDER，params 为空列表供追加
         """
         sql = (
+            "WITH teacher_stats AS ("
+            "  SELECT c.teacher_id AS tid, COUNT(DISTINCT sc.student_id) AS student_count "
+            "  FROM courses c "
+            "  LEFT JOIN student_course sc ON sc.course_id = c.id "
+            "  LEFT JOIN students s ON sc.student_id = s.id AND s.is_deleted = 0 "
+            "  GROUP BY c.teacher_id"
+            ") "
             "SELECT t.*, z.name AS zhicheng_name, "
             "       (SELECT COUNT(*) FROM courses c "
             "        WHERE c.teacher_id = t.id) AS course_count, "
             "       (SELECT COUNT(*) FROM classes cl "
             "        WHERE cl.head_teacher_id = t.id) AS class_count, "
-            "       (SELECT COUNT(DISTINCT sc.student_id) FROM student_course sc "
-            "        JOIN courses c ON sc.course_id = c.id "
-            "        WHERE c.teacher_id = t.id) AS student_count, "
-            "       t.class_fee * (SELECT COUNT(DISTINCT sc.student_id) FROM student_course sc "
-            "        JOIN courses c ON sc.course_id = c.id "
-            "        WHERE c.teacher_id = t.id) AS class_fee_total "
+            "       COALESCE(ts.student_count, 0) AS student_count, "
+            "       t.class_fee * COALESCE(ts.student_count, 0) AS class_fee_total "
             "FROM teachers t "
             "LEFT JOIN zhicheng z ON t.zhicheng_id = z.id "
+            "LEFT JOIN teacher_stats ts ON ts.tid = t.id "
         )
         params = []
         return sql, params

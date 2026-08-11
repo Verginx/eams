@@ -33,7 +33,7 @@ def get_teacher(teacher_id: int):
     return success(teacher)
 
 
-@router.get("/detail/{teacher_id}")  # 路由装饰器：注册 GET 查询接口
+@router.get("/{teacher_id}/detail")  # 路由装饰器：注册 GET 查询接口
 def get_teacher_detail(teacher_id: int):
     """查：教师详情（基本信息 + 授课课程 + 班主任班级 + 选其课程的学生）"""
     detail = TeacherModel().get_detail(teacher_id)

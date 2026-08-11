@@ -40,33 +40,6 @@ def get_course(course_id: int):
     return success(course)
 
 
-@router.get("/status/{course_id}")  # 路由装饰器：注册 GET 查询接口
-def get_status(course_id: int):
-    """查：查询课程开课状态"""
-    course = CourseModel().get_open(course_id)
-    if course is None:
-        raise HTTPException(status_code=404, detail="课程不存在")
-    return success(course)
-
-
-@router.get("/mode/{course_id}")  # 路由装饰器：注册 GET 查询接口
-def get_mode(course_id: int):
-    """查：查询课程授课方式"""
-    course = CourseModel().get_mode(course_id)
-    if course is None:
-        raise HTTPException(status_code=404, detail="课程不存在")
-    return success(course)
-
-
-@router.get("/capacity/{course_id}")  # 路由装饰器：注册 GET 查询接口
-def get_capacity(course_id: int):
-    """查：查询课程人数上限"""
-    course = CourseModel().get_capacity(course_id)
-    if course is None:
-        raise HTTPException(status_code=404, detail="课程不存在")
-    return success(course)
-
-
 @router.post("/add")  # 路由装饰器：注册 POST 新增接口
 def add_course(data: CourseCreate):
     """增：新增课程（若指定授课教师，先验证存在）"""

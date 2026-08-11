@@ -31,6 +31,8 @@ class ZhichengModel:
             params.append(f"%{keyword}%")
         sql += "ORDER BY z.level DESC, z.id"
         with Database() as db:
+            # GROUP_CONCAT 默认截断长度 1024 字节，扩到 10KB 避免教师名列表被截断
+            db.execute("SET SESSION group_concat_max_len = 10240")
             return db.query_all(sql, tuple(params))
 
     def get_by_id(self, zhicheng_id):

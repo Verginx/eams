@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     db_host: str = "127.0.0.1"   # 数据库地址（本机部署）
     db_port: int = 3306          # 端口
     db_user: str = "root"        # 用户名
-    db_password: str = "150259"  # 密码（开发默认）
+    db_password: str = ""        # 密码（必须通过环境变量或 .env 提供，不再内置默认值）
     db_name: str = "school_db"   # 数据库名
 
     # 读取配置：优先环境变量，其次项目根 .env 文件

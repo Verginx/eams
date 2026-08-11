@@ -77,30 +77,6 @@ class CourseModel:
             db.execute("DELETE FROM student_course WHERE course_id = %s", (course_id,))
             return db.execute("DELETE FROM courses WHERE id = %s", (course_id,))
 
-    def get_open(self, course_id):
-        """查询课程开课状态"""
-        with Database() as db:
-            return db.query_one(
-                "SELECT status FROM courses WHERE id=%s",
-                (course_id,)
-            )
-
-    def get_mode(self, course_id):
-        """查询课程授课方式"""
-        with Database() as db:
-            return db.query_one(
-                "SELECT mode FROM courses WHERE id=%s",
-                (course_id,)
-            )
-
-    def get_capacity(self, course_id):
-        """查询课程人数上限"""
-        with Database() as db:
-            return db.query_one(
-                "SELECT max_students FROM courses WHERE id=%s",
-                (course_id,)
-            )
-
 
 class StudentCourseModel:
     """选课表（学生选课）数据访问"""

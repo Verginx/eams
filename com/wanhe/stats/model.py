@@ -3,7 +3,7 @@
 统计模块 - 数据访问层
 
 职责：封装首页统计分析的 SQL（各班级人数、学生男女占比）
-依赖：common.db.Database（每次新建连接，方法内 commit）
+依赖：common.db.Database（with 语句自动释放连接）
 """
 import logging
 

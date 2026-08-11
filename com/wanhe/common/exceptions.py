@@ -12,9 +12,13 @@
 - Exception（兜底 500）：不向客户端泄露堆栈，仅返回通用错误信息
 - 注意：FastAPI 按异常类型精确查表，RequestValidationError 需单独注册（不能只注册 HTTPException）
 """
+import logging
+
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+
+logger = logging.getLogger(__name__)
 
 
 def register_exception_handlers(app: FastAPI):
@@ -53,8 +57,9 @@ def register_exception_handlers(app: FastAPI):
 
     @app.exception_handler(Exception)  # 异常处理器装饰器：注册兜底异常处理器 → 500 统一格式
     async def global_exception_handler(request: Request, exc: Exception):
-        """兜底捕获所有未处理异常（500），返回统一格式，不泄露堆栈"""
+        """兜底捕获所有未处理异常（500），返回统一格式；不向客户端泄露异常详情，仅记录到日志"""
+        logger.error("服务器内部错误 url:%s 异常:%s", request.url.path, exc, exc_info=True)
         return JSONResponse(
             status_code=500,
-            content={"code": 500, "msg": f"服务器内部错误：{exc}", "data": None},
+            content={"code": 500, "msg": "服务器内部错误", "data": None},
         )
