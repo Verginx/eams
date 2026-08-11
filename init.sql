@@ -54,7 +54,7 @@ CREATE TABLE IF NOT EXISTS classes (
 ) COMMENT '班级表';
 
 -- ============================================================
--- 4. 学生表（含分班）
+-- 4. 学生表（含选老师、分班、回收站）
 -- ============================================================
 CREATE TABLE IF NOT EXISTS students (
     id              INT         PRIMARY KEY AUTO_INCREMENT COMMENT '学生ID',
@@ -63,7 +63,11 @@ CREATE TABLE IF NOT EXISTS students (
     age             INT                                     COMMENT '年龄',
     grade           VARCHAR(20)                             COMMENT '年级',
     class_id        INT                                     COMMENT '所属班级ID（分班）',
+    teacher_id      INT                                     COMMENT '所属教师ID（选老师）',
     enrollment_date DATE                                    COMMENT '入学日期',
+    is_deleted      TINYINT(1)  DEFAULT 0                   COMMENT '是否删除 0-正常 1-回收站',
+    delete_time     DATETIME    DEFAULT NULL                COMMENT '删除时间',
+    delete_operator VARCHAR(50) DEFAULT NULL                COMMENT '删除操作人',
     create_time     DATETIME    DEFAULT CURRENT_TIMESTAMP   COMMENT '创建时间'
 ) COMMENT '学生表';
 
@@ -71,11 +75,14 @@ CREATE TABLE IF NOT EXISTS students (
 -- 5. 课程表（教师授课）
 -- ============================================================
 CREATE TABLE IF NOT EXISTS courses (
-    id          INT         PRIMARY KEY AUTO_INCREMENT COMMENT '课程ID',
-    name        VARCHAR(50) NOT NULL                    COMMENT '课程名称',
-    credit      INT         DEFAULT 1                   COMMENT '学分',
-    teacher_id  INT                                     COMMENT '授课教师ID',
-    create_time DATETIME    DEFAULT CURRENT_TIMESTAMP   COMMENT '创建时间'
+    id           INT         PRIMARY KEY AUTO_INCREMENT COMMENT '课程ID',
+    name         VARCHAR(50) NOT NULL                    COMMENT '课程名称',
+    credit       INT         DEFAULT 1                   COMMENT '学分',
+    teacher_id   INT                                     COMMENT '授课教师ID',
+    status       VARCHAR(10) DEFAULT '开课'              COMMENT '开课状态：开课/未开课',
+    mode         VARCHAR(10) DEFAULT '线下'              COMMENT '授课方式：线上/线下',
+    max_students INT         DEFAULT NULL                COMMENT '课程人数上限（NULL=不限制）',
+    create_time  DATETIME    DEFAULT CURRENT_TIMESTAMP   COMMENT '创建时间'
 ) COMMENT '课程表';
 
 -- ============================================================
@@ -145,13 +152,13 @@ INSERT INTO students (name, gender, age, grade, class_id, enrollment_date) VALUE
     ('朱十', '女', 17, '高三', 6, '2023-09-01');
 
 -- 课程示例（数学/语文/英语/物理/化学/生物，对应授课教师）
-INSERT INTO courses (name, credit, teacher_id) VALUES
-    ('数学', 4, 1),
-    ('语文', 4, 2),
-    ('英语', 3, 3),
-    ('物理', 3, 4),
-    ('化学', 3, 5),
-    ('生物', 2, 6);
+INSERT INTO courses (name, credit, teacher_id, status, mode, max_students) VALUES
+    ('数学', 4, 1, '开课', '线下', 50),
+    ('语文', 4, 2, '开课', '线下', 50),
+    ('英语', 3, 3, '开课', '线下', 45),
+    ('物理', 3, 4, '开课', '线下', 40),
+    ('化学', 3, 5, '开课', '线下', 40),
+    ('生物', 2, 6, '开课', '线下', 35);
 
 -- 选课示例：18 名学生每人均选 1-3 门课程（每个学生至少选 1 门；教师所带学生数有差异，体现课时费随带生数增长）
 INSERT INTO student_course (student_id, course_id) VALUES

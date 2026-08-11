@@ -73,15 +73,16 @@
                 <!-- 学生管理面板 -->
                 <div id="students" class="panel">
                     <div class="card">
-                        <h2>学生管理（含分班、选课）</h2>
+                        <h2>学生管理（含分班、选老师、回收站）</h2>
                         <div class="toolbar">
                             <input id="stuKeyword" placeholder="按姓名搜索">
                             <button class="btn" onclick="searchStudents()">查询</button>
                             <button class="btn" onclick="resetStudents()">重置</button>
+                            <button class="btn btn-green" onclick="openRecycleModal()">回收站</button>
                             <button class="btn btn-blue" onclick="openStudentModal('add')">新增学生</button>
                         </div>
                         <table>
-                            <thead><tr><th>ID</th><th>姓名</th><th>性别</th><th>年龄</th><th>年级</th><th>班级</th><th>授课教师</th><th>选课数</th><th>操作</th></tr></thead>
+                            <thead><tr><th>ID</th><th>姓名</th><th>性别</th><th>年龄</th><th>年级</th><th>班级</th><th>所选老师</th><th>选课数</th><th>操作</th></tr></thead>
                             <tbody id="studentBody"></tbody>
                         </table>
                         <div class="pagination" id="stuPager"></div>
@@ -117,7 +118,7 @@
                             <button class="btn btn-blue" onclick="openCourseModal('add')">新增课程</button>
                         </div>
                         <table>
-                            <thead><tr><th>ID</th><th>课程名</th><th>学分</th><th>授课教师</th><th>操作</th></tr></thead>
+                            <thead><tr><th>ID</th><th>课程名</th><th>学分</th><th>授课教师</th><th>状态</th><th>方式</th><th>人数上限</th><th>已选人数</th><th>操作</th></tr></thead>
                             <tbody id="courseBody"></tbody>
                         </table>
                     </div>
@@ -134,7 +135,7 @@
                             <button class="btn btn-blue" onclick="openClassModal('add')">新增班级</button>
                         </div>
                         <table>
-                            <thead><tr><th>ID</th><th>班级名</th><th>年级</th><th>班主任</th><th>操作</th></tr></thead>
+                            <thead><tr><th>ID</th><th>班级名</th><th>年级</th><th>班主任</th><th>学生数</th><th>操作</th></tr></thead>
                             <tbody id="classBody"></tbody>
                         </table>
                     </div>

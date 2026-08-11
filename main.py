@@ -7,7 +7,7 @@ EAMS 学校教务管理系统 - 程序入口
   开发：uvicorn main:app --reload
   也可：python main.py
 
-组装流程：创建 FastAPI 实例 → 挂载静态页 → 注册日志中间件/异常处理 → 挂载 5 个业务模块路由
+组装流程：创建 FastAPI 实例 → 挂载静态页 → 注册日志中间件/异常处理 → 挂载 7 个业务模块路由（auth/student/teacher/classes/course/stats/zhicheng）
 """
 import os
 from fastapi import FastAPI

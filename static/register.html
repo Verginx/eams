@@ -16,7 +16,8 @@
         </div>
         <div id="msg" class="msg"></div>
         <div class="field"><input type="text" id="username" placeholder="用户名（3-20位）"></div>
-        <div class="field"><input type="password" id="password" placeholder="密码（6-20位）"></div>
+        <div class="field"><input type="password" id="password" placeholder="密码（8-30位，含大小写字母+数字+特殊字符）" oninput="checkStrength()"></div>
+        <div class="field strength-bar"><div id="strengthFill" class="strength-fill"></div><span id="strengthLabel" class="strength-label"></span></div>
         <div class="field"><input type="text" id="name" placeholder="真实姓名"></div>
         <div class="field">
             <select id="gender">

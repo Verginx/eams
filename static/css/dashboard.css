@@ -167,6 +167,19 @@ tbody tr:last-child td { border-bottom: none; }
 }
 .modal-result { margin-top: 8px; font-size: 14px; color: #666; line-height: 2; }
 .modal-result .btn-sm { margin-left: 8px; padding: 2px 10px; font-size: 12px; }
+.course-check-list { max-height: 260px; overflow-y: auto; border: 1px solid #f0f0f0; border-radius: 6px; padding: 10px 12px; }
+.course-check-list label { display: block; padding: 5px 0; font-size: 14px; color: #333; cursor: pointer; }
+.course-check-list input { margin-right: 6px; }
+.recycle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 4px;
+    border-bottom: 1px dashed #f0f0f0;
+    font-size: 14px;
+    color: #333;
+}
 .score-row {
     display: flex;
     align-items: center;

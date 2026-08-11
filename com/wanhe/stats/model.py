@@ -24,7 +24,7 @@ class StatsModel:
         with Database() as db:
             rows = db.query_all(
                 "SELECT c.id, c.name AS class_name, c.grade, COUNT(s.id) AS cnt "
-                "FROM classes c LEFT JOIN students s ON s.class_id = c.id "
+                "FROM classes c LEFT JOIN students s ON s.class_id = c.id AND s.is_deleted = 0 "
                 "GROUP BY c.id, c.name, c.grade "
                 "ORDER BY c.grade, c.id"
             )
@@ -38,7 +38,7 @@ class StatsModel:
         """
         with Database() as db:
             rows = db.query_all(
-                "SELECT gender, COUNT(*) AS cnt FROM students GROUP BY gender"
+                "SELECT gender, COUNT(*) AS cnt FROM students WHERE is_deleted = 0 GROUP BY gender"
             )
             logger.info("统计在校学生男女占比，返回 %s 条", len(rows))
             return rows

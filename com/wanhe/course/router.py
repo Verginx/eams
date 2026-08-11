@@ -27,7 +27,7 @@ router = APIRouter(prefix="/courses", tags=["课程模块"])
 
 @router.get("/all")  # 路由装饰器：注册 GET 查询接口
 def list_courses(keyword: str = ""):
-    """查：获取所有课程（含授课教师名），可按课程名模糊查询"""
+    """查：获取所有课程（含授课教师名、已选人数），可按课程名模糊查询"""
     return success(CourseModel().get_all(keyword))
 
 
@@ -40,13 +40,42 @@ def get_course(course_id: int):
     return success(course)
 
 
+@router.get("/status/{course_id}")  # 路由装饰器：注册 GET 查询接口
+def get_status(course_id: int):
+    """查：查询课程开课状态"""
+    course = CourseModel().get_open(course_id)
+    if course is None:
+        raise HTTPException(status_code=404, detail="课程不存在")
+    return success(course)
+
+
+@router.get("/mode/{course_id}")  # 路由装饰器：注册 GET 查询接口
+def get_mode(course_id: int):
+    """查：查询课程授课方式"""
+    course = CourseModel().get_mode(course_id)
+    if course is None:
+        raise HTTPException(status_code=404, detail="课程不存在")
+    return success(course)
+
+
+@router.get("/capacity/{course_id}")  # 路由装饰器：注册 GET 查询接口
+def get_capacity(course_id: int):
+    """查：查询课程人数上限"""
+    course = CourseModel().get_capacity(course_id)
+    if course is None:
+        raise HTTPException(status_code=404, detail="课程不存在")
+    return success(course)
+
+
 @router.post("/add")  # 路由装饰器：注册 POST 新增接口
 def add_course(data: CourseCreate):
     """增：新增课程（若指定授课教师，先验证存在）"""
     if data.teacher_id and TeacherModel().get_by_id(data.teacher_id) is None:
         raise HTTPException(status_code=404, detail="授课教师不存在")
-    new_id = CourseModel().create(data.name, data.credit, data.teacher_id)
-    logger.info("新增课程 id:%s 名称:%s", new_id, data.name)
+    new_id = CourseModel().create(data.name, data.credit, data.teacher_id,
+                                  data.status, data.mode, data.max_students)
+    logger.info("新增课程 id:%s 名称:%s 状态:%s 方式:%s 上限:%s",
+                new_id, data.name, data.status, data.mode, data.max_students)
     return success({"id": new_id}, msg="新增成功")
 
 
@@ -55,14 +84,16 @@ def update_course(course_id: int, data: CourseUpdate):
     """改：修改课程"""
     if CourseModel().get_by_id(course_id) is None:
         raise HTTPException(status_code=404, detail="课程不存在")
-    CourseModel().update(course_id, data.name, data.credit, data.teacher_id)
-    logger.info("修改课程 id:%s", course_id)
+    CourseModel().update(course_id, data.name, data.credit, data.teacher_id,
+                          data.status, data.mode, data.max_students)
+    logger.info("修改课程 id:%s 状态:%s 方式:%s 上限:%s",
+                course_id, data.status, data.mode, data.max_students)
     return success(msg="修改成功")
 
 
 @router.delete("/del/{course_id}")  # 路由装饰器：注册 DELETE 删除接口
 def delete_course(course_id: int):
-    """删：删除课程（连带清理选课记录；若会使某学生降到 0 门课程则阻止删除）"""
+    """删：删除课程（若会使某学生降到 0 门课程则阻止删除）"""
     if CourseModel().get_by_id(course_id) is None:
         raise HTTPException(status_code=404, detail="课程不存在")
     only_students = StudentCourseModel().students_with_only_this_course(course_id)
@@ -109,7 +140,7 @@ def select_course(student_id: int, data: CourseSelect):
 
 @router.delete("/unselect/{student_id}")  # 路由装饰器：注册 DELETE 删除接口
 def unselect_course(student_id: int, course_id: int):
-    """退课：学生退掉一门课程（course_id 走 query 参数，避免 DELETE 带 body 的兼容性问题；不能退到 0 门）"""
+    """退课：学生退掉一门课程（不能退到 0 门）"""
     if not StudentCourseModel().is_selected(student_id, course_id):
         raise HTTPException(status_code=400, detail="未选该课程，无法退课")
     if StudentCourseModel().count_by_student(student_id) <= 1:

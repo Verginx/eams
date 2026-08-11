@@ -1,15 +1,16 @@
 // EAMS 管理后台逻辑
-// 依赖：common.js（api / logout / esc），请在 dashboard.js 之前引入
+// 依赖：common.js（api / logout / esc / currentUser / currentRole），请在 dashboard.js 之前引入
 // 注意：所有插入 innerHTML 的用户数据必须经过 esc() 转义，防止 XSS
 
 // ===== 登录信息 =====
 // 填充欢迎语与当前用户（无鉴权，直接显示；未登录也可访问）
 const username = localStorage.getItem('username') || '';
 const role = localStorage.getItem('role') || 'student';
+const isAdmin = role === 'admin';
 document.getElementById('userInfo').textContent = '当前用户：' + username;
 document.getElementById('welcomeTitle').textContent = '欢迎回来，' + username;
 document.getElementById('welcomeSub').textContent =
-    (role === 'admin' ? '管理员' : '同学') + ' · 这里是 EAMS 学校教务管理系统';
+    (isAdmin ? '管理员' : '同学') + ' · 这里是 EAMS 学校教务管理系统';
 
 // ===== 菜单切换（侧边栏高亮） =====
 /**
@@ -68,6 +69,7 @@ let stuPage = 1;             // 学生列表当前页码
 const STU_PAGE_SIZE = 10;    // 每页条数（与后端 /students/page 默认一致）
 const GRADES = ['高一', '高二', '高三'];  // 年级固定集合（班级与学生共用）
 let stuClassList = [];       // 新增学生弹框的班级列表（含班主任信息）
+let stuTeacherList = [];     // 新增/编辑学生弹框的教师列表
 
 /**
  * 新增学生弹框：年级变更 → 班级下拉仅显示同年级班级
@@ -95,15 +97,16 @@ async function loadStudents(keyword) {
     // 删除后当前页可能为空：回退一页重载
     if (stuPage > 1 && list.length === 0) { stuPage--; loadStudents(keyword); return; }
     const tbody = document.getElementById('studentBody');
-    // 渲染学生行（含编辑/分班/选课/删除操作）
+    // 渲染学生行（含编辑/分班/选老师/选课/删除操作）
     tbody.innerHTML = list.map(s => `
         <tr>
             <td>${s.id}</td><td>${esc(s.name)}</td><td>${esc(s.gender)}</td>
             <td>${s.age}</td><td>${esc(s.grade)}</td><td>${esc(s.class_name) || '未分班'}</td>
-            <td>${esc(s.teacher_names) || '未选课'}</td><td>${s.course_count || 0}</td>
+            <td>${esc(s.teacher_name) || '未选老师'}</td><td>${s.course_count || 0}</td>
             <td>
                 <button class="btn btn-blue" onclick="openStudentModal('edit', ${s.id})">编辑</button>
                 <button class="btn btn-orange" onclick="openAssignClassModal(${s.id})">分班</button>
+                <button class="btn btn-purple" onclick="openAssignTeacherModal(${s.id})">选老师</button>
                 <button class="btn btn-green" onclick="openSelectStudentCourseModal(${s.id})">选课</button>
                 <button class="btn btn-red" onclick="delStudent(${s.id})">删除</button>
             </td>
@@ -137,14 +140,17 @@ async function openStudentModal(mode, id) {
     // 编辑模式先拉取学生详情预填
     let prefill = {};
     if (mode === 'edit') prefill = await api(`/students/one/${id}`) || {};
-    // 加载班级列表，供新增时按年级过滤班级
-    stuClassList = await api('/classes/all');
-    // 仅新增模式提供班级下拉（学生老师 = 所选课程授课教师，由选课维护）；编辑只改基本信息
-    const extraFields = mode === 'add' ? `
-        <div class="field"><select id="s_classId">
+    // 并行加载班级与教师列表，供新增/编辑时下拉
+    [stuClassList, stuTeacherList] = await Promise.all([api('/classes/all'), api('/teachers/all')]);
+    const extraFields = `
+        <div class="field"><select id="s_classId" onchange="">
             <option value="">暂不分班</option>
-            ${stuClassList.filter(c => c.grade === (prefill.grade || '高一')).map(c => `<option value="${c.id}">${esc(c.name)}（${esc(c.grade)}）</option>`).join('')}
-        </select></div>` : '';
+            ${stuClassList.filter(c => c.grade === (prefill.grade || '高一')).map(c => `<option value="${c.id}" ${prefill.class_id === c.id ? 'selected' : ''}>${esc(c.name)}（${esc(c.grade)}）</option>`).join('')}
+        </select></div>
+        <div class="field"><select id="s_teacherId">
+            <option value="">暂不选老师</option>
+            ${stuTeacherList.map(t => `<option value="${t.id}" ${prefill.teacher_id === t.id ? 'selected' : ''}>${esc(t.name)}（${esc(t.subject)}）</option>`).join('')}
+        </select></div>`;
     openModal(mode === 'add' ? '新增学生' : '编辑学生', `
         <div class="field"><input id="s_name" placeholder="姓名" value="${esc(prefill.name)}"></div>
         <div class="field"><select id="s_gender">
@@ -166,8 +172,9 @@ async function openStudentModal(mode, id) {
         if (!ageInput || isNaN(age) || age < 10 || age > 100) { alert('年龄需为 10-100 之间的数字'); return; }
         const body = { name, gender: document.getElementById('s_gender').value, age, grade: document.getElementById('s_grade').value };
         if (mode === 'add') {
-            // 新增：附带班级（可空，后端校验年级匹配）
+            // 新增：附带班级与老师（可空，后端校验存在性）
             body.class_id = Number(document.getElementById('s_classId').value) || null;
+            body.teacher_id = Number(document.getElementById('s_teacherId').value) || null;
             await api('/students/add', 'POST', body);
         } else {
             await api(`/students/update/${id}`, 'PUT', body);
@@ -209,8 +216,34 @@ async function openAssignClassModal(id) {
 }
 
 /**
+ * 打开选老师弹框：下拉选择教师 → 绑定给学生
+ * @param {number} id 学生 ID
+ */
+async function openAssignTeacherModal(id) {
+    const stu = await api(`/students/one/${id}`);
+    if (!stu) { alert('学生不存在'); return; }
+    const teachers = await api('/teachers/all');
+    if (!teachers.length) { alert('暂无教师可选，请先新增教师'); return; }
+    openModal('学生选老师', `
+        <div class="field">学生：${esc(stu.name)}（学号 ${stu.id}）</div>
+        <div class="field"><select id="a_teacher">
+            <option value="">不指定老师</option>
+            ${teachers.map(t => `<option value="${t.id}" ${stu.teacher_id === t.id ? 'selected' : ''}>${esc(t.name)}（${esc(t.subject)}）</option>`).join('')}
+        </select></div>
+        <div class="field hint">可留空以清空所选老师</div>
+    `);
+    modalOnOk = async () => {
+        const teacher_id = document.getElementById('a_teacher').value;
+        // 选中「不指定老师」且学生原有老师 → 传 null 清空；否则原样提交
+        await api(`/students/assign-teacher/${id}`, 'PUT', { teacher_id: teacher_id ? Number(teacher_id) : null });
+        closeModal();
+        loadStudents();
+    };
+}
+
+/**
  * 打开学生选课弹框：勾选课程 → 为指定学生选课/退课
- * 学生老师 = 所选课程的授课教师；每个学生至少选 1 门课程
+ * 每个学生至少选 1 门课程；老师 = 学生所选老师（students.teacher_id）
  * @param {number} studentId 学生 ID
  */
 async function openSelectStudentCourseModal(studentId) {
@@ -220,12 +253,12 @@ async function openSelectStudentCourseModal(studentId) {
     ]);
     const selectedIds = selected.map(c => c.course_id);
     openModal('学生选课', `
-        <div class="field"><b>请勾选课程</b>（学生至少需选 1 门；老师 = 所选课程授课教师）</div>
+        <div class="field"><b>请勾选课程</b>（学生至少需选 1 门；退课不可退掉最后一门）</div>
         <div class="field course-check-list">
             ${courses.map(c => `
             <label><input type="checkbox" class="course-check" value="${c.id}"
                 ${selectedIds.includes(c.id) ? 'checked' : ''}> ${esc(c.name)}
-                （${esc(c.teacher_name) || '未分配'}，${c.credit}学分）</label>`).join('') || '暂无课程'}
+                （${esc(c.teacher_name) || '未分配'}，${c.credit}学分${c.status === '未开课' ? '，未开课' : ''}）</label>`).join('') || '暂无课程'}
         </div>
     `);
     modalOnOk = async () => {
@@ -241,11 +274,51 @@ async function openSelectStudentCourseModal(studentId) {
     };
 }
 
-/** 删除学生：确认后调用删除接口并刷新 */
+/** 删除学生：逻辑删除（移入回收站），操作人由请求头自动携带 */
 async function delStudent(id) {
-    if (!confirm('确定删除该学生？')) return;
+    if (!confirm('确定删除该学生？将移入回收站，可从回收站恢复。')) return;
     await api(`/students/del/${id}`, 'DELETE');
     loadStudents();
+}
+
+// ===== 学生回收站（管理员专属） =====
+/** 打开回收站弹框：分页列出已删除学生，支持恢复 / 真实删除 */
+async function openRecycleModal(page = 1) {
+    if (!isAdmin) { alert('回收站操作仅管理员可用'); return; }
+    const data = await api(`/students/recycle/list?keyword=&page=${page}&page_size=${STU_PAGE_SIZE}`, 'GET', null, { 'X-Current-Role': 'admin' });
+    const list = data.items || [];
+    const total = data.total || 0;
+    const totalPages = Math.max(1, Math.ceil(total / STU_PAGE_SIZE));
+    openModal('回收站（已删除学生）', `
+        ${list.length ? list.map(s => `
+            <div class="recycle-row">
+                <span><b>${esc(s.name)}</b>（学号 ${s.id} · ${esc(s.grade)} · 删除于 ${esc(s.delete_time)}）</span>
+                <button class="btn btn-green btn-sm" onclick="recoverStudent(${s.id})">恢复</button>
+                <button class="btn btn-red btn-sm" onclick="realDeleteStudent(${s.id})">永久删除</button>
+            </div>`).join('') : '<div class="muted">回收站为空</div>'}
+        ${totalPages > 1 ? `<div class="pagination">
+            <button class="btn" ${page <= 1 ? 'disabled' : ''} onclick="openRecycleModal(${page - 1})">上一页</button>
+            <span class="page-info">第 ${page} / ${totalPages} 页（共 ${total} 条）</span>
+            <button class="btn" ${page >= totalPages ? 'disabled' : ''} onclick="openRecycleModal(${page + 1})">下一页</button>
+        </div>` : ''}
+    `);
+    modalOnOk = () => { closeModal(); loadStudents(); loadStats(); };
+}
+
+/** 恢复学生：从回收站还原 */
+async function recoverStudent(id) {
+    if (!confirm('确定恢复该学生？')) return;
+    await api(`/students/recycle/recover/${id}`, 'PUT', null, { 'X-Current-Role': 'admin' });
+    openRecycleModal();
+    loadStats();
+}
+
+/** 真实删除：物理删除学生（含选课记录与账号），不可恢复 */
+async function realDeleteStudent(id) {
+    if (!confirm('确定永久删除该学生？将同时删除其选课记录和账号，不可恢复！')) return;
+    await api(`/students/recycle/real-del/${id}`, 'DELETE', null, { 'X-Current-Role': 'admin' });
+    openRecycleModal();
+    loadStats();
 }
 
 // ===== 教师管理 =====
@@ -408,6 +481,9 @@ async function loadCourses(keyword='') {
     document.getElementById('courseBody').innerHTML = list.map(c => `
         <tr><td>${c.id}</td><td>${esc(c.name)}</td><td>${c.credit}</td>
         <td>${esc(c.teacher_name) || '未分配'}</td>
+        <td>${esc(c.status) || '开课'}</td><td>${esc(c.mode) || '线下'}</td>
+        <td>${c.max_students == null ? '不限' : c.max_students}</td>
+        <td>${c.enrolled_count || 0}</td>
         <td>
             <button class="btn btn-blue" onclick="openCourseModal('edit', ${c.id})">编辑</button>
             <button class="btn btn-green" onclick="openSelectCourseModal(${c.id})">选课</button>
@@ -436,6 +512,15 @@ async function openCourseModal(mode, id) {
             <option value="">未分配教师</option>
             ${teachers.map(t => `<option value="${t.id}" ${prefill.teacher_id === t.id ? 'selected' : ''}>${esc(t.name)}</option>`).join('')}
         </select></div>
+        <div class="field"><select id="c_status">
+            <option value="开课" ${(prefill.status || '开课') === '开课' ? 'selected' : ''}>开课</option>
+            <option value="未开课" ${prefill.status === '未开课' ? 'selected' : ''}>未开课</option>
+        </select></div>
+        <div class="field"><select id="c_mode">
+            <option value="线下" ${(prefill.mode || '线下') === '线下' ? 'selected' : ''}>线下</option>
+            <option value="线上" ${prefill.mode === '线上' ? 'selected' : ''}>线上</option>
+        </select></div>
+        <div class="field"><input id="c_max" type="number" min="0" placeholder="人数上限（留空=不限制）" value="${prefill.max_students ?? ''}"></div>
     `);
     modalOnOk = async () => {
         const name = document.getElementById('c_name').value.trim();
@@ -443,7 +528,21 @@ async function openCourseModal(mode, id) {
         const creditInput = document.getElementById('c_credit').value;
         const credit = Number(creditInput);
         if (!creditInput || isNaN(credit) || credit < 1 || credit > 10) { alert('学分需为 1-10 之间的数字'); return; }
-        const body = { name, credit, teacher_id: Number(document.getElementById('c_teacher').value) || null };
+        // 人数上限：留空存 null，非空须为 >=0 整数
+        let max_students = null;
+        const maxInput = document.getElementById('c_max').value.trim();
+        if (maxInput !== '') {
+            const m = Number(maxInput);
+            if (isNaN(m) || m < 0 || !Number.isInteger(m)) { alert('人数上限需为大于等于 0 的整数'); return; }
+            max_students = m;
+        }
+        const body = {
+            name, credit,
+            teacher_id: Number(document.getElementById('c_teacher').value) || null,
+            status: document.getElementById('c_status').value,
+            mode: document.getElementById('c_mode').value,
+            max_students
+        };
         if (mode === 'add') {
             await api('/courses/add', 'POST', body);
         } else {
@@ -573,13 +672,36 @@ async function loadClasses(keyword='') {
     document.getElementById('classBody').innerHTML = list.map(c => `
         <tr><td>${c.id}</td><td>${esc(c.name)}</td><td>${esc(c.grade)}</td>
         <td>${esc(c.head_teacher_name) || '无'}</td>
+        <td>${c.student_count || 0}</td>
         <td>
+            <button class="btn btn-green" onclick="viewClassDetail(${c.id})">详情</button>
             <button class="btn btn-blue" onclick="openClassModal('edit', ${c.id})">编辑</button>
             <button class="btn btn-red" onclick="delClass(${c.id})">删除</button>
         </td></tr>`).join('');
 }
 function searchClasses() { loadClasses(document.getElementById('clsKeyword').value.trim()); }
 function resetClasses() { document.getElementById('clsKeyword').value = ''; loadClasses(); }
+
+/** 班级详情：展示班主任、学生名单、男女统计 */
+async function viewClassDetail(id) {
+    const d = await api(`/classes/${id}/detail`);
+    if (!d) { alert('班级不存在'); return; }
+    const cls = d.class || {};
+    const ht = d.head_teacher || {};
+    const studentsHtml = (d.students && d.students.length)
+        ? d.students.map(s => `<li>${esc(s.name)}（${esc(s.gender)}，${s.age}岁）</li>`).join('')
+        : '<li class="muted">暂无学生</li>';
+    const genderHtml = Object.keys(d.gender_stats || {}).map(g => `${esc(g)} ${d.gender_stats[g]}人`).join(' / ') || '—';
+    openModal(`班级详情 - ${esc(cls.name)}`, `
+        <table class="detail-table">
+            <tr><th>班级名</th><td>${esc(cls.name)}</td><th>年级</th><td>${esc(cls.grade)}</td></tr>
+            <tr><th>班主任</th><td>${esc(ht.name) || '未设置'}</td><th>学生数</th><td>${d.student_count || 0}</td></tr>
+            <tr><th>男女统计</th><td colspan="3">${genderHtml}</td></tr>
+        </table>
+        <div class="detail-block"><h4>学生名单</h4><ul>${studentsHtml}</ul></div>
+    `);
+    modalOnOk = () => closeModal();
+}
 
 /**
  * 打开新增/编辑班级弹框
@@ -594,7 +716,9 @@ async function openClassModal(mode, id) {
     const teachers = await api('/teachers/all');
     openModal(mode === 'add' ? '新增班级' : '编辑班级', `
         <div class="field"><input id="cl_name" placeholder="班级名称" value="${esc(prefill.name)}"></div>
-        <div class="field"><input id="cl_grade" placeholder="年级" value="${esc(prefill.grade)}"></div>
+        <div class="field"><select id="cl_grade">
+            ${GRADES.map(g => `<option value="${g}" ${(prefill.grade || '高一') === g ? 'selected' : ''}>${g}</option>`).join('')}
+        </select></div>
         <div class="field"><select id="cl_head">
             <option value="">无班主任</option>
             ${teachers.map(t => `<option value="${t.id}" ${prefill.head_teacher_id === t.id ? 'selected' : ''}>${esc(t.name)}</option>`).join('')}
@@ -603,7 +727,7 @@ async function openClassModal(mode, id) {
     modalOnOk = async () => {
         const name = document.getElementById('cl_name').value.trim();
         if (!name) { alert('请填写班级名称'); return; }
-        const body = { name, grade: document.getElementById('cl_grade').value.trim() || '高一', head_teacher_id: Number(document.getElementById('cl_head').value) || null };
+        const body = { name, grade: document.getElementById('cl_grade').value, head_teacher_id: Number(document.getElementById('cl_head').value) || null };
         if (mode === 'add') {
             await api('/classes/add', 'POST', body);
         } else {
@@ -614,9 +738,9 @@ async function openClassModal(mode, id) {
     };
 }
 
-/** 删除班级：确认后调用删除接口并刷新（后端会清空所属学生班级引用） */
+/** 删除班级：确认后调用删除接口并刷新（后端会阻止删除非空班级） */
 async function delClass(id) {
-    if (!confirm('确定删除该班级？所属学生将被设为未分班。')) return;
+    if (!confirm('确定删除该班级？班级下有学生将被禁止删除。')) return;
     await api(`/classes/del/${id}`, 'DELETE');
     loadClasses();
     loadStudents();

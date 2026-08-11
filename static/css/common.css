@@ -40,6 +40,8 @@ body {
 .btn-green { background: #52c41a; color: #fff; }
 .btn-orange { background: #fa8c16; color: #fff; }
 .btn-red { background: #ff4d4f; color: #fff; }
+.btn-purple { background: #722ed1; color: #fff; }
+.btn-sm { padding: 2px 10px; font-size: 12px; }
 
 /* ===== 提示与链接 ===== */
 .msg { min-height: 20px; margin-bottom: 10px; text-align: center; font-size: 14px; color: #ff4d4f; }

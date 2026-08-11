@@ -39,9 +39,16 @@ def register_exception_handlers(app: FastAPI):
         :param exc: 含 errors()，列出每个失败字段及原因
         :return: 422 JSONResponse，data 为校验错误明细列表
         """
+        # 字段校验器抛出的 ValueError 会出现在 ctx.error 中，是非 JSON 序列化对象，
+        # 需转成字符串，否则 JSONResponse 序列化失败会触发 500
+        errors = exc.errors()
+        for e in errors:
+            ctx = e.get('ctx')
+            if isinstance(ctx, dict) and 'error' in ctx:
+                ctx['error'] = str(ctx['error'])
         return JSONResponse(
             status_code=422,
-            content={"code": 422, "msg": "参数校验错误", "data": exc.errors()},
+            content={"code": 422, "msg": "参数校验错误", "data": errors},
         )
 
     @app.exception_handler(Exception)  # 异常处理器装饰器：注册兜底异常处理器 → 500 统一格式
