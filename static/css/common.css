@@ -48,3 +48,35 @@ body {
 .tip { margin-top: 18px; text-align: center; font-size: 13px; color: #666; }
 .tip a { color: #1890ff; text-decoration: none; }
 .tip a:hover { text-decoration: underline; }
+
+/* ===== Toast 轻提示（右上角，自动消失） ===== */
+.toast-box {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    pointer-events: none;
+}
+.toast {
+    min-width: 200px;
+    max-width: 360px;
+    padding: 10px 16px;
+    border-radius: 6px;
+    font-size: 14px;
+    color: #fff;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    animation: toast-in .25s ease;
+    transition: opacity .3s, transform .3s;
+    word-break: break-all;
+}
+.toast-success { background: #52c41a; }
+.toast-error { background: #ff4d4f; }
+.toast-info { background: #1890ff; }
+.toast-hide { opacity: 0; transform: translateY(-8px); }
+@keyframes toast-in {
+    from { opacity: 0; transform: translateX(20px); }
+    to { opacity: 1; transform: translateX(0); }
+}

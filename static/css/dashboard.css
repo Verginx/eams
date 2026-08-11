@@ -170,6 +170,8 @@ tbody tr:last-child td { border-bottom: none; }
 .course-check-list { max-height: 260px; overflow-y: auto; border: 1px solid #f0f0f0; border-radius: 6px; padding: 10px 12px; }
 .course-check-list label { display: block; padding: 5px 0; font-size: 14px; color: #333; cursor: pointer; }
 .course-check-list input { margin-right: 6px; }
+.course-check-list label.course-full { color: #aaa; cursor: not-allowed; text-decoration: line-through; }
+.course-check-list label.course-full input { cursor: not-allowed; }
 .recycle-row {
     display: flex;
     align-items: center;

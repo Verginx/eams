@@ -29,6 +29,7 @@ function switchTab(name) {
 // ===== 弹框机制 =====
 // 弹框确定按钮的回调（由各 openXxx 函数设置）；关闭时清空
 let modalOnOk = null;
+let modalBusy = false;   // 提交锁：防止确定按钮双击/连点触发重复提交
 
 /**
  * 打开通用弹框：设置标题与内容并显示
@@ -41,15 +42,33 @@ function openModal(title, bodyHtml) {
     // 撤销按钮默认隐藏，仅详情类弹框按需显示
     const undoBtn = document.getElementById('modalUndo');
     if (undoBtn) undoBtn.style.display = 'none';
+    // 新弹框复位确定按钮（上一次提交可能禁用过它）
+    document.getElementById('modalOk').disabled = false;
+    modalBusy = false;
     document.getElementById('modal').style.display = 'flex';
 }
 /** 关闭弹框并清空确定回调 */
 function closeModal() {
     document.getElementById('modal').style.display = 'none';
     modalOnOk = null;
+    modalBusy = false;
+    document.getElementById('modalOk').disabled = false;
 }
-// 弹框确定按钮：点击时执行当前 modalOnOk（未设置则无动作）
-document.getElementById('modalOk').onclick = () => { if (modalOnOk) modalOnOk(); };
+// 弹框确定按钮：带提交锁执行当前 modalOnOk，异步期间禁用按钮防止重复提交
+document.getElementById('modalOk').onclick = async () => {
+    if (!modalOnOk || modalBusy) return;
+    modalBusy = true;
+    const btn = document.getElementById('modalOk');
+    btn.disabled = true;
+    try {
+        await modalOnOk();
+    } catch (e) {
+        // 校验类异常已在 handler 内提示，此处静默兜底，保证按钮能复位
+    } finally {
+        modalBusy = false;
+        btn.disabled = false;
+    }
+};
 
 /**
  * 用列表数据填充下拉框
@@ -64,12 +83,22 @@ function fillSelect(selectId, list, valueKey, textKey) {
     sel.innerHTML = list.map(item => `<option value="${esc(item[valueKey])}">${esc(item[textKey])}</option>`).join('');
 }
 
+// ===== 业务域值常量（集中管理，避免散落硬编码） =====
+const GRADES = ['高一', '高二', '高三'];                 // 年级固定集合（班级与学生共用）
+const EDUCATIONS = ['本科', '硕士', '博士'];             // 教师学历
+const COURSE_STATUSES = ['开课', '未开课'];              // 课程开课状态
+const COURSE_MODES = ['线下', '线上'];                   // 课程授课方式
+
 // ===== 学生管理（分页） =====
 let stuPage = 1;             // 学生列表当前页码
 const STU_PAGE_SIZE = 10;    // 每页条数（与后端 /students/page 默认一致）
-const GRADES = ['高一', '高二', '高三'];  // 年级固定集合（班级与学生共用）
 let stuClassList = [];       // 新增学生弹框的班级列表（含班主任信息）
 let stuTeacherList = [];     // 新增/编辑学生弹框的教师列表
+
+/** 渲染空列表兜底行（colspan 占满整行居中显示提示） */
+function emptyRow(colspan, msg='暂无数据') {
+    return `<tr><td colspan="${colspan}" class="muted" style="text-align:center;padding:20px;">${msg}</td></tr>`;
+}
 
 /**
  * 新增学生弹框：年级变更 → 班级下拉仅显示同年级班级
@@ -93,12 +122,12 @@ async function loadStudents(keyword) {
     if (keyword === undefined) keyword = document.getElementById('stuKeyword').value.trim();
     // 调用分页接口（page/page_size/关键字），返回 {total, items}
     const data = await api(`/students/page?keyword=${encodeURIComponent(keyword)}&page=${stuPage}&page_size=${STU_PAGE_SIZE}`);
-    const list = data.items || [];
+    const list = (data && data.items) || [];
     // 删除后当前页可能为空：回退一页重载
     if (stuPage > 1 && list.length === 0) { stuPage--; loadStudents(keyword); return; }
     const tbody = document.getElementById('studentBody');
-    // 渲染学生行（含编辑/分班/选老师/选课/删除操作）
-    tbody.innerHTML = list.map(s => `
+    // 渲染学生行（含编辑/分班/选老师/选课/删除操作）；空列表展示兜底提示
+    tbody.innerHTML = list.length ? list.map(s => `
         <tr>
             <td>${s.id}</td><td>${esc(s.name)}</td><td>${esc(s.gender)}</td>
             <td>${s.age}</td><td>${esc(s.grade)}</td><td>${esc(s.class_name) || '未分班'}</td>
@@ -110,8 +139,8 @@ async function loadStudents(keyword) {
                 <button class="btn btn-green" onclick="openSelectStudentCourseModal(${s.id})">选课</button>
                 <button class="btn btn-red" onclick="delStudent(${s.id})">删除</button>
             </td>
-        </tr>`).join('');
-    renderStuPager(data.total || 0);
+        </tr>`).join('') : emptyRow(9, keyword ? '未找到匹配的学生' : '暂无学生');
+    renderStuPager((data && data.total) || 0);
 }
 /**
  * 渲染学生分页条（上一页/页码/下一页），单页时禁用边界按钮
@@ -141,15 +170,18 @@ async function openStudentModal(mode, id) {
     let prefill = {};
     if (mode === 'edit') prefill = await api(`/students/one/${id}`) || {};
     // 并行加载班级与教师列表，供新增/编辑时下拉
-    [stuClassList, stuTeacherList] = await Promise.all([api('/classes/all'), api('/teachers/all')]);
+    [stuClassList, stuTeacherList] = await Promise.all([
+        api('/classes/all') || [],
+        api('/teachers/all') || []
+    ]);
     const extraFields = `
         <div class="field"><select id="s_classId" onchange="">
             <option value="">暂不分班</option>
-            ${stuClassList.filter(c => c.grade === (prefill.grade || '高一')).map(c => `<option value="${c.id}" ${prefill.class_id === c.id ? 'selected' : ''}>${esc(c.name)}（${esc(c.grade)}）</option>`).join('')}
+            ${(stuClassList || []).filter(c => c.grade === (prefill.grade || '高一')).map(c => `<option value="${c.id}" ${prefill.class_id === c.id ? 'selected' : ''}>${esc(c.name)}（${esc(c.grade)}）</option>`).join('')}
         </select></div>
         <div class="field"><select id="s_teacherId">
             <option value="">暂不选老师</option>
-            ${stuTeacherList.map(t => `<option value="${t.id}" ${prefill.teacher_id === t.id ? 'selected' : ''}>${esc(t.name)}（${esc(t.subject)}）</option>`).join('')}
+            ${(stuTeacherList || []).map(t => `<option value="${t.id}" ${prefill.teacher_id === t.id ? 'selected' : ''}>${esc(t.name)}（${esc(t.subject)}）</option>`).join('')}
         </select></div>`;
     openModal(mode === 'add' ? '新增学生' : '编辑学生', `
         <div class="field"><input id="s_name" placeholder="姓名" value="${esc(prefill.name)}"></div>
@@ -167,9 +199,9 @@ async function openStudentModal(mode, id) {
     modalOnOk = async () => {
         const name = document.getElementById('s_name').value.trim();
         const ageInput = document.getElementById('s_age').value;
-        if (!name) { alert('请填写学生姓名'); return; }
+        if (!name) { showToast('请填写学生姓名', 'error'); return; }
         const age = Number(ageInput);
-        if (!ageInput || isNaN(age) || age < 10 || age > 100) { alert('年龄需为 10-100 之间的数字'); return; }
+        if (!ageInput || isNaN(age) || age < 10 || age > 100) { showToast('年龄需为 10-100 之间的数字', 'error'); return; }
         const body = { name, gender: document.getElementById('s_gender').value, age, grade: document.getElementById('s_grade').value };
         if (mode === 'add') {
             // 新增：附带班级与老师（可空，后端校验存在性）
@@ -191,11 +223,11 @@ async function openStudentModal(mode, id) {
 async function openAssignClassModal(id) {
     // 分班：仅可选择与学生年级一致的班级（学生年级与班级年级固定对应）
     const stu = await api(`/students/one/${id}`);
-    if (!stu) { alert('学生不存在'); return; }
-    const classes = await api('/classes/all');
+    if (!stu) { showToast('学生不存在', 'error'); return; }
+    const classes = await api('/classes/all') || [];
     const matched = classes.filter(c => c.grade === stu.grade);
     if (matched.length === 0) {
-        alert(`无符合该生年级（${stu.grade}）的班级`);
+        showToast(`无符合该生年级（${stu.grade}）的班级`, 'error');
         return;
     }
     openModal('学生分班', `
@@ -208,7 +240,7 @@ async function openAssignClassModal(id) {
     `);
     modalOnOk = async () => {
         const class_id = document.getElementById('a_class').value;
-        if (!class_id) { alert('请选择班级'); return; }
+        if (!class_id) { showToast('请选择班级', 'error'); return; }
         await api(`/students/assign-class/${id}`, 'PUT', { class_id: Number(class_id) });
         closeModal();
         loadStudents();
@@ -221,9 +253,9 @@ async function openAssignClassModal(id) {
  */
 async function openAssignTeacherModal(id) {
     const stu = await api(`/students/one/${id}`);
-    if (!stu) { alert('学生不存在'); return; }
-    const teachers = await api('/teachers/all');
-    if (!teachers.length) { alert('暂无教师可选，请先新增教师'); return; }
+    if (!stu) { showToast('学生不存在', 'error'); return; }
+    const teachers = await api('/teachers/all') || [];
+    if (!teachers.length) { showToast('暂无教师可选，请先新增教师', 'error'); return; }
     openModal('学生选老师', `
         <div class="field">学生：${esc(stu.name)}（学号 ${stu.id}）</div>
         <div class="field"><select id="a_teacher">
@@ -251,14 +283,18 @@ async function openSelectStudentCourseModal(studentId) {
         api('/courses/all'),
         api(`/courses/student/${studentId}`)
     ]);
-    const selectedIds = selected.map(c => c.course_id);
+    const selectedIds = (selected || []).map(c => c.course_id);
+    // 已满课程（enrolled>=max 且 max 非空）不可再勾选；已选中的除外（保留可退）
+    const fullCourse = c => c.max_students != null && c.enrolled_count >= c.max_students;
     openModal('学生选课', `
-        <div class="field"><b>请勾选课程</b>（学生至少需选 1 门；退课不可退掉最后一门）</div>
+        <div class="field"><b>请勾选课程</b>（学生至少需选 1 门；退课不可退掉最后一门；已满课程不可再选）</div>
         <div class="field course-check-list">
-            ${courses.map(c => `
-            <label><input type="checkbox" class="course-check" value="${c.id}"
-                ${selectedIds.includes(c.id) ? 'checked' : ''}> ${esc(c.name)}
-                （${esc(c.teacher_name) || '未分配'}，${c.credit}学分${c.status === '未开课' ? '，未开课' : ''}）</label>`).join('') || '暂无课程'}
+            ${(courses || []).map(c => {
+                const isFull = fullCourse(c) && !selectedIds.includes(c.id);
+                return `<label class="${isFull ? 'course-full' : ''}"><input type="checkbox" class="course-check" value="${c.id}"
+                    ${selectedIds.includes(c.id) ? 'checked' : ''} ${isFull ? 'disabled' : ''}> ${esc(c.name)}
+                    （${esc(c.teacher_name) || '未分配'}，${c.credit}学分${c.status === '未开课' ? '，未开课' : ''}${fullCourse(c) ? '，已满' : ''}）</label>`;
+            }).join('') || '暂无课程'}
         </div>
     `);
     modalOnOk = async () => {
@@ -284,10 +320,10 @@ async function delStudent(id) {
 // ===== 学生回收站（管理员专属） =====
 /** 打开回收站弹框：分页列出已删除学生，支持恢复 / 真实删除 */
 async function openRecycleModal(page = 1) {
-    if (!isAdmin) { alert('回收站操作仅管理员可用'); return; }
+    if (!isAdmin) { showToast('回收站操作仅管理员可用', 'error'); return; }
     const data = await api(`/students/recycle/list?keyword=&page=${page}&page_size=${STU_PAGE_SIZE}`, 'GET', null, { 'X-Current-Role': 'admin' });
-    const list = data.items || [];
-    const total = data.total || 0;
+    const list = (data && data.items) || [];
+    const total = (data && data.total) || 0;
     const totalPages = Math.max(1, Math.ceil(total / STU_PAGE_SIZE));
     openModal('回收站（已删除学生）', `
         ${list.length ? list.map(s => `
@@ -335,8 +371,8 @@ function fmtMoney(v) {
  * @param {string} keyword 姓名关键字（默认 ''）
  */
 async function loadTeachers(keyword='') {
-    const list = await api('/teachers/all?keyword=' + encodeURIComponent(keyword));
-    document.getElementById('teacherBody').innerHTML = list.map(t => `
+    const list = await api('/teachers/all?keyword=' + encodeURIComponent(keyword)) || [];
+    document.getElementById('teacherBody').innerHTML = list.length ? list.map(t => `
         <tr><td>${t.id}</td><td>${esc(t.name)}</td><td>${esc(t.gender)}</td>
         <td>${t.age}</td><td>${esc(t.subject)}</td>
         <td>${esc(t.education) || '—'}</td><td>${esc(t.hire_date) || '—'}</td>
@@ -348,7 +384,7 @@ async function loadTeachers(keyword='') {
             <button class="btn btn-blue" onclick="openTeacherModal('edit', ${t.id})">编辑</button>
             <button class="btn btn-green" onclick="viewTeacherDetail(${t.id})">详情</button>
             <button class="btn btn-red" onclick="delTeacher(${t.id})">删除</button>
-        </td></tr>`).join('');
+        </td></tr>`).join('') : emptyRow(14, keyword ? '未找到匹配的教师' : '暂无教师');
 }
 function searchTeachers() { loadTeachers(document.getElementById('teaKeyword').value.trim()); }
 function resetTeachers() { document.getElementById('teaKeyword').value = ''; loadTeachers(); }
@@ -363,7 +399,7 @@ async function openTeacherModal(mode, id) {
     let prefill = {};
     if (mode === 'edit') prefill = await api(`/teachers/one/${id}`) || {};
     // 加载职称列表供职称下拉（新增/编辑均提供）
-    const zhichengs = await api('/zhicheng/all');
+    const zhichengs = await api('/zhicheng/all') || [];
     openModal(mode === 'add' ? '新增教师' : '编辑教师', `
         <div class="field"><input id="t_name" placeholder="姓名" value="${esc(prefill.name)}"></div>
         <div class="field"><select id="t_gender">
@@ -375,7 +411,7 @@ async function openTeacherModal(mode, id) {
         <div class="field"><input id="t_phone" placeholder="联系电话" value="${esc(prefill.phone)}"></div>
         <div class="field"><select id="t_education">
             <option value="">学历（可选）</option>
-            ${['本科', '硕士', '博士'].map(e => `<option value="${e}" ${prefill.education === e ? 'selected' : ''}>${e}</option>`).join('')}
+            ${EDUCATIONS.map(e => `<option value="${e}" ${prefill.education === e ? 'selected' : ''}>${e}</option>`).join('')}
         </select></div>
         <div class="field"><input id="t_hire_date" type="date" value="${prefill.hire_date || ''}"></div>
         <div class="field"><input id="t_remark" placeholder="备注（可选）" value="${esc(prefill.remark)}"></div>
@@ -393,16 +429,16 @@ async function openTeacherModal(mode, id) {
         const name = document.getElementById('t_name').value.trim();
         const subject = document.getElementById('t_subject').value.trim();
         const ageInput = document.getElementById('t_age').value;
-        if (!name) { alert('请填写教师姓名'); return; }
-        if (!subject) { alert('请填写教授科目'); return; }
+        if (!name) { showToast('请填写教师姓名', 'error'); return; }
+        if (!subject) { showToast('请填写教授科目', 'error'); return; }
         const age = Number(ageInput);
-        if (!ageInput || isNaN(age) || age < 20 || age > 70) { alert('年龄需为 20-70 之间的数字'); return; }
+        if (!ageInput || isNaN(age) || age < 20 || age > 70) { showToast('年龄需为 20-70 之间的数字', 'error'); return; }
         // 薪资三个字段：留空存 null，非空须为 >=0 的数字
         const money = id => {
             const v = document.getElementById(id).value.trim();
             if (v === '') return null;
             const n = Number(v);
-            if (isNaN(n) || n < 0) { alert('薪资金额需为大于等于 0 的数字'); throw new Error('invalid-salary'); }
+            if (isNaN(n) || n < 0) { showToast('薪资金额需为大于等于 0 的数字', 'error'); throw new Error('invalid-salary'); }
             return n;
         };
         const base_salary = money('t_base_salary');
@@ -432,8 +468,8 @@ async function openTeacherModal(mode, id) {
 
 /** 教师详情：展示基本信息 + 授课课程 + 班主任班级 + 选其课程的学生 */
 async function viewTeacherDetail(id) {
-    const d = await api(`/teachers/detail/${id}`);
-    if (!d) { alert('教师不存在'); return; }
+    const d = await api(`/teachers/${id}/detail`);
+    if (!d) { showToast('教师不存在', 'error'); return; }
     const coursesHtml = (d.courses && d.courses.length)
         ? d.courses.map(c => `<li>${esc(c.name)}（${c.credit} 学分）</li>`).join('')
         : '<li class="muted">无授课课程</li>';
@@ -477,8 +513,8 @@ async function delTeacher(id) {
  * @param {string} keyword 课程名关键字（默认 ''）
  */
 async function loadCourses(keyword='') {
-    const list = await api('/courses/all?keyword=' + encodeURIComponent(keyword));
-    document.getElementById('courseBody').innerHTML = list.map(c => `
+    const list = await api('/courses/all?keyword=' + encodeURIComponent(keyword)) || [];
+    document.getElementById('courseBody').innerHTML = list.length ? list.map(c => `
         <tr><td>${c.id}</td><td>${esc(c.name)}</td><td>${c.credit}</td>
         <td>${esc(c.teacher_name) || '未分配'}</td>
         <td>${esc(c.status) || '开课'}</td><td>${esc(c.mode) || '线下'}</td>
@@ -489,7 +525,7 @@ async function loadCourses(keyword='') {
             <button class="btn btn-green" onclick="openSelectCourseModal(${c.id})">选课</button>
             <button class="btn btn-orange" onclick="openScoreModal(${c.id})">成绩</button>
             <button class="btn btn-red" onclick="delCourse(${c.id})">删除</button>
-        </td></tr>`).join('');
+        </td></tr>`).join('') : emptyRow(9, keyword ? '未找到匹配的课程' : '暂无课程');
 }
 function searchCourses() { loadCourses(document.getElementById('couKeyword').value.trim()); }
 function resetCourses() { document.getElementById('couKeyword').value = ''; loadCourses(); }
@@ -504,7 +540,7 @@ async function openCourseModal(mode, id) {
     let prefill = {};
     if (mode === 'edit') prefill = await api(`/courses/one/${id}`) || {};
     // 加载教师列表供授课教师下拉
-    const teachers = await api('/teachers/all');
+    const teachers = await api('/teachers/all') || [];
     openModal(mode === 'add' ? '新增课程' : '编辑课程', `
         <div class="field"><input id="c_name" placeholder="课程名称" value="${esc(prefill.name)}"></div>
         <div class="field"><input id="c_credit" type="number" placeholder="学分（1-10）" value="${prefill.credit ?? 1}"></div>
@@ -513,27 +549,25 @@ async function openCourseModal(mode, id) {
             ${teachers.map(t => `<option value="${t.id}" ${prefill.teacher_id === t.id ? 'selected' : ''}>${esc(t.name)}</option>`).join('')}
         </select></div>
         <div class="field"><select id="c_status">
-            <option value="开课" ${(prefill.status || '开课') === '开课' ? 'selected' : ''}>开课</option>
-            <option value="未开课" ${prefill.status === '未开课' ? 'selected' : ''}>未开课</option>
+            ${COURSE_STATUSES.map(s => `<option value="${s}" ${(prefill.status || '开课') === s ? 'selected' : ''}>${s}</option>`).join('')}
         </select></div>
         <div class="field"><select id="c_mode">
-            <option value="线下" ${(prefill.mode || '线下') === '线下' ? 'selected' : ''}>线下</option>
-            <option value="线上" ${prefill.mode === '线上' ? 'selected' : ''}>线上</option>
+            ${COURSE_MODES.map(m => `<option value="${m}" ${(prefill.mode || '线下') === m ? 'selected' : ''}>${m}</option>`).join('')}
         </select></div>
         <div class="field"><input id="c_max" type="number" min="0" placeholder="人数上限（留空=不限制）" value="${prefill.max_students ?? ''}"></div>
     `);
     modalOnOk = async () => {
         const name = document.getElementById('c_name').value.trim();
-        if (!name) { alert('请填写课程名称'); return; }
+        if (!name) { showToast('请填写课程名称', 'error'); return; }
         const creditInput = document.getElementById('c_credit').value;
         const credit = Number(creditInput);
-        if (!creditInput || isNaN(credit) || credit < 1 || credit > 10) { alert('学分需为 1-10 之间的数字'); return; }
+        if (!creditInput || isNaN(credit) || credit < 1 || credit > 10) { showToast('学分需为 1-10 之间的数字', 'error'); return; }
         // 人数上限：留空存 null，非空须为 >=0 整数
         let max_students = null;
         const maxInput = document.getElementById('c_max').value.trim();
         if (maxInput !== '') {
             const m = Number(maxInput);
-            if (isNaN(m) || m < 0 || !Number.isInteger(m)) { alert('人数上限需为大于等于 0 的整数'); return; }
+            if (isNaN(m) || m < 0 || !Number.isInteger(m)) { showToast('人数上限需为大于等于 0 的整数', 'error'); return; }
             max_students = m;
         }
         const body = {
@@ -562,16 +596,19 @@ async function openSelectCourseModal(courseId) {
         api('/courses/all'),
         api('/students/all')
     ]);
-    const course = courses.find(c => c.id === courseId) || {};
+    const course = (courses || []).find(c => c.id === courseId) || {};
+    // 课程已满时提示，避免继续选人
+    const full = course.max_students != null && course.enrolled_count >= course.max_students;
     openModal(`选课 - ${esc(course.name || '')}（授课：${esc(course.teacher_name) || '未分配'}）`, `
         <div class="field"><select id="c_student">
             <option value="">请选择学生</option>
-            ${students.map(s => `<option value="${s.id}">${esc(s.name)}（${esc(s.class_name) || '未分班'} · 已选${s.course_count || 0}门，学号${s.id}）</option>`).join('')}
+            ${(students || []).map(s => `<option value="${s.id}">${esc(s.name)}（${esc(s.class_name) || '未分班'} · 已选${s.course_count || 0}门，学号${s.id}）</option>`).join('')}
         </select></div>
+        ${full ? '<div class="field hint">该课程已满（' + course.enrolled_count + '/' + course.max_students + '），不建议继续选人</div>' : ''}
     `);
     modalOnOk = async () => {
         const sid = document.getElementById('c_student').value;
-        if (!sid) { alert('请选择学生'); return; }
+        if (!sid) { showToast('请选择学生', 'error'); return; }
         await api(`/courses/select/${sid}`, 'POST', { course_id: courseId });
         closeModal();
         loadCourses();
@@ -587,7 +624,7 @@ async function openScoreModal(courseId) {
         api(`/courses/one/${courseId}`),
         api(`/courses/students/${courseId}`)
     ]);
-    if (!students.length) { alert('该课程暂无学生选课，无法登记成绩'); return; }
+    if (!students || !students.length) { showToast('该课程暂无学生选课，无法登记成绩', 'error'); return; }
     openModal(`登记成绩 - ${esc(course.name)}`, `
         ${students.map(s => `
         <div class="field score-row">
@@ -597,17 +634,21 @@ async function openScoreModal(courseId) {
         </div>`).join('')}
     `);
     modalOnOk = async () => {
-        // 逐名学生提交；成绩留空则跳过（不覆盖已有成绩）
+        // 先整体校验所有填写项，避免"提交一半后报错"的部分失败
+        const updates = [];
         for (const s of students) {
             const val = document.getElementById(`score_${s.student_id}`).value.trim();
-            if (val === '') continue;
+            if (val === '') continue;  // 留空则跳过（不覆盖已有成绩）
             const score = Number(val);
             if (isNaN(score) || score < 0 || score > 100) {
-                alert(`学号 ${s.student_id}（${s.student_name}）成绩需为 0-100`);
+                showToast(`学号 ${s.student_id}（${s.student_name}）成绩需为 0-100`, 'error');
                 return;
             }
-            await api(`/courses/score/${s.student_id}`, 'PUT', { course_id: courseId, score });
+            updates.push({ student_id: s.student_id, score });
         }
+        if (updates.length === 0) { closeModal(); return; }
+        // 校验通过后并行提交，避免逐条串行等待
+        await Promise.all(updates.map(u => api(`/courses/score/${u.student_id}`, 'PUT', { course_id: courseId, score: u.score })));
         closeModal();
         loadCourses();
     };
@@ -621,7 +662,7 @@ let viewStudentId = null;
  */
 async function renderViewResult(sid) {
     viewStudentId = sid;
-    const list = await api(`/courses/student/${sid}`);
+    const list = await api(`/courses/student/${sid}`) || [];
     const stuName = document.getElementById('v_student').selectedOptions[0].textContent;
     document.getElementById('v_result').innerHTML = list.length
         ? `<b>${esc(stuName)} 已选课程：</b><br>` +
@@ -639,7 +680,7 @@ async function unselectCourse(studentId, courseId) {
 
 /** 打开"查看学生选课"弹框：下拉选学生 → 展示其已选课程（可退课） */
 async function openViewStudentCourses() {
-    const students = await api('/students/all');
+    const students = await api('/students/all') || [];
     openModal('查看学生选课', `
         <div class="field"><select id="v_student">
             <option value="">请选择学生</option>
@@ -650,7 +691,7 @@ async function openViewStudentCourses() {
     // 确定：拉取该学生已选课程并渲染到弹框内
     modalOnOk = async () => {
         const sid = document.getElementById('v_student').value;
-        if (!sid) { alert('请选择学生'); return; }
+        if (!sid) { showToast('请选择学生', 'error'); return; }
         renderViewResult(Number(sid));
     };
 }
@@ -668,8 +709,8 @@ async function delCourse(id) {
  * @param {string} keyword 班级名关键字（默认 ''）
  */
 async function loadClasses(keyword='') {
-    const list = await api('/classes/all?keyword=' + encodeURIComponent(keyword));
-    document.getElementById('classBody').innerHTML = list.map(c => `
+    const list = await api('/classes/all?keyword=' + encodeURIComponent(keyword)) || [];
+    document.getElementById('classBody').innerHTML = list.length ? list.map(c => `
         <tr><td>${c.id}</td><td>${esc(c.name)}</td><td>${esc(c.grade)}</td>
         <td>${esc(c.head_teacher_name) || '无'}</td>
         <td>${c.student_count || 0}</td>
@@ -677,7 +718,7 @@ async function loadClasses(keyword='') {
             <button class="btn btn-green" onclick="viewClassDetail(${c.id})">详情</button>
             <button class="btn btn-blue" onclick="openClassModal('edit', ${c.id})">编辑</button>
             <button class="btn btn-red" onclick="delClass(${c.id})">删除</button>
-        </td></tr>`).join('');
+        </td></tr>`).join('') : emptyRow(6, keyword ? '未找到匹配的班级' : '暂无班级');
 }
 function searchClasses() { loadClasses(document.getElementById('clsKeyword').value.trim()); }
 function resetClasses() { document.getElementById('clsKeyword').value = ''; loadClasses(); }
@@ -685,7 +726,7 @@ function resetClasses() { document.getElementById('clsKeyword').value = ''; load
 /** 班级详情：展示班主任、学生名单、男女统计 */
 async function viewClassDetail(id) {
     const d = await api(`/classes/${id}/detail`);
-    if (!d) { alert('班级不存在'); return; }
+    if (!d) { showToast('班级不存在', 'error'); return; }
     const cls = d.class || {};
     const ht = d.head_teacher || {};
     const studentsHtml = (d.students && d.students.length)
@@ -713,7 +754,7 @@ async function openClassModal(mode, id) {
     let prefill = {};
     if (mode === 'edit') prefill = await api(`/classes/one/${id}`) || {};
     // 加载教师列表供班主任下拉
-    const teachers = await api('/teachers/all');
+    const teachers = await api('/teachers/all') || [];
     openModal(mode === 'add' ? '新增班级' : '编辑班级', `
         <div class="field"><input id="cl_name" placeholder="班级名称" value="${esc(prefill.name)}"></div>
         <div class="field"><select id="cl_grade">
@@ -726,7 +767,7 @@ async function openClassModal(mode, id) {
     `);
     modalOnOk = async () => {
         const name = document.getElementById('cl_name').value.trim();
-        if (!name) { alert('请填写班级名称'); return; }
+        if (!name) { showToast('请填写班级名称', 'error'); return; }
         const body = { name, grade: document.getElementById('cl_grade').value, head_teacher_id: Number(document.getElementById('cl_head').value) || null };
         if (mode === 'add') {
             await api('/classes/add', 'POST', body);
@@ -752,15 +793,15 @@ async function delClass(id) {
  * @param {string} keyword 职称名关键字（默认 ''）
  */
 async function loadZhicheng(keyword='') {
-    const list = await api('/zhicheng/all?keyword=' + encodeURIComponent(keyword));
-    document.getElementById('zhichengBody').innerHTML = list.map(z => `
+    const list = await api('/zhicheng/all?keyword=' + encodeURIComponent(keyword)) || [];
+    document.getElementById('zhichengBody').innerHTML = list.length ? list.map(z => `
         <tr><td>${z.id}</td><td>${esc(z.name)}</td><td>${z.level}</td>
         <td>${esc(z.description)}</td>
         <td>${z.teacher_names ? esc(z.teacher_names) : '<span class="muted">无教师</span>'}</td>
         <td>
             <button class="btn btn-blue" onclick="openZhichengModal('edit', ${z.id})">编辑</button>
             <button class="btn btn-red" onclick="delZhicheng(${z.id})">删除</button>
-        </td></tr>`).join('');
+        </td></tr>`).join('') : emptyRow(6, keyword ? '未找到匹配的职称' : '暂无职称');
 }
 function searchZhicheng() { loadZhicheng(document.getElementById('zcKeyword').value.trim()); }
 function resetZhicheng() { document.getElementById('zcKeyword').value = ''; loadZhicheng(); }
@@ -781,10 +822,10 @@ async function openZhichengModal(mode, id) {
     `);
     modalOnOk = async () => {
         const name = document.getElementById('zc_name').value.trim();
-        if (!name) { alert('请填写职称名称'); return; }
+        if (!name) { showToast('请填写职称名称', 'error'); return; }
         const lvlInput = document.getElementById('zc_level').value;
         const level = Number(lvlInput);
-        if (!lvlInput || isNaN(level) || level < 1 || level > 10) { alert('级别需为 1-10 之间的数字'); return; }
+        if (!lvlInput || isNaN(level) || level < 1 || level > 10) { showToast('级别需为 1-10 之间的数字', 'error'); return; }
         const body = { name, level, description: document.getElementById('zc_desc').value.trim() };
         if (mode === 'add') {
             await api('/zhicheng/add', 'POST', body);
@@ -814,9 +855,9 @@ async function loadStats() {
         api('/classes/all')
     ]);
     document.getElementById('studentCount').textContent = (studentPage && studentPage.total) || 0;
-    document.getElementById('teacherCount').textContent = teachers.length;
-    document.getElementById('courseCount').textContent = courses.length;
-    document.getElementById('classCount').textContent = classes.length;
+    document.getElementById('teacherCount').textContent = (teachers || []).length;
+    document.getElementById('courseCount').textContent = (courses || []).length;
+    document.getElementById('classCount').textContent = (classes || []).length;
 }
 
 // ===== 统计分析图表（ECharts） =====
