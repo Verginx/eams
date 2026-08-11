@@ -223,3 +223,13 @@ tbody tr:last-child td { border-bottom: none; }
 .pagination .btn { padding: 4px 14px; }
 .pagination .btn:disabled { opacity: 0.45; cursor: not-allowed; }
 .pagination .page-info { min-width: 90px; text-align: center; }
+
+/* ===== 课程选课进度 ===== */
+.cp-cell { min-width: 180px; }
+.cp-meta { font-size: 12px; color: #666; margin-bottom: 4px; white-space: nowrap; }
+.cp-bar { font-size: 13px; white-space: nowrap; }
+.cp-blocks { font-family: Consolas, Menlo, monospace; letter-spacing: 1px; font-size: 14px; }
+.cp-bar b { margin-left: 2px; }
+.cp-bar.ok  .cp-blocks, .cp-bar.ok  b { color: #52c41a; }
+.cp-bar.high .cp-blocks, .cp-bar.high b { color: #fa8c16; }
+.cp-bar.full .cp-blocks, .cp-bar.full b { color: #ff4d4f; }

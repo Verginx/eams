@@ -11,6 +11,11 @@ document.getElementById('userInfo').textContent = '当前用户：' + username;
 document.getElementById('welcomeTitle').textContent = '欢迎回来，' + username;
 document.getElementById('welcomeSub').textContent =
     (isAdmin ? '管理员' : '同学') + ' · 这里是 EAMS 学校教务管理系统';
+// 回收站仅管理员可见可操作
+if (!isAdmin) {
+    const recycleBtn = document.getElementById('recycleBtn');
+    if (recycleBtn) recycleBtn.style.display = 'none';
+}
 
 // ===== 菜单切换（侧边栏高亮） =====
 /**
@@ -508,6 +513,21 @@ async function delTeacher(id) {
 }
 
 // ===== 课程管理 =====
+/** 生成课程选课进度单元格：最大/当前人数 + 块状进度条 + 百分比（max_students 为空时不限制） */
+function courseProgressCell(c) {
+    if (c.max_students == null) return '<td class="cp-cell">不限</td>';
+    const enrolled = c.enrolled_count || 0;
+    const max = c.max_students;
+    const pct = Math.max(0, Math.min(100, Math.round(enrolled / max * 100)));
+    const filled = Math.floor(pct / 10);
+    const blocks = '█'.repeat(filled) + '░'.repeat(10 - filled);
+    const level = pct >= 100 ? 'full' : (pct >= 80 ? 'high' : 'ok');
+    return `<td class="cp-cell">
+        <div class="cp-meta">最大人数：${max}，当前人数：${enrolled}</div>
+        <div class="cp-bar ${level}">选课进度：<span class="cp-blocks">${blocks}</span> <b>${pct}%</b></div>
+    </td>`;
+}
+
 /**
  * 加载课程列表（支持关键字查询）
  * @param {string} keyword 课程名关键字（默认 ''）
@@ -518,14 +538,13 @@ async function loadCourses(keyword='') {
         <tr><td>${c.id}</td><td>${esc(c.name)}</td><td>${c.credit}</td>
         <td>${esc(c.teacher_name) || '未分配'}</td>
         <td>${esc(c.status) || '开课'}</td><td>${esc(c.mode) || '线下'}</td>
-        <td>${c.max_students == null ? '不限' : c.max_students}</td>
-        <td>${c.enrolled_count || 0}</td>
+        ${courseProgressCell(c)}
         <td>
             <button class="btn btn-blue" onclick="openCourseModal('edit', ${c.id})">编辑</button>
             <button class="btn btn-green" onclick="openSelectCourseModal(${c.id})">选课</button>
             <button class="btn btn-orange" onclick="openScoreModal(${c.id})">成绩</button>
             <button class="btn btn-red" onclick="delCourse(${c.id})">删除</button>
-        </td></tr>`).join('') : emptyRow(9, keyword ? '未找到匹配的课程' : '暂无课程');
+        </td></tr>`).join('') : emptyRow(8, keyword ? '未找到匹配的课程' : '暂无课程');
 }
 function searchCourses() { loadCourses(document.getElementById('couKeyword').value.trim()); }
 function resetCourses() { document.getElementById('couKeyword').value = ''; loadCourses(); }
