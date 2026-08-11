@@ -74,9 +74,7 @@ body {
     white-space: nowrap;
 }
 
-/* 忘记密码页：步骤切换 + 分段密码强度条 + 规则清单 */
-.step { display: none; }
-.step.active { display: block; }
+/* 忘记密码页：分段密码强度条 + 规则清单 */
 .pwd-strength-wrap { margin: 8px 0 4px; }
 .pwd-strength-bar {
     display: flex;
