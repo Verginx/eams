@@ -2,35 +2,40 @@
 """
 学生模块 - 数据访问层
 
-职责：封装 students 表及相关联表（classes/teachers/student_course）的 SQL 操作
-包含：增删改查、分班、选老师、关键字查询、分页查询、级联删除（逐条执行）
+职责：封装 students 表及相关联表（classes/student_course）的 SQL 操作
+包含：增删改查、分班、关键字查询、分页查询、级联删除（逐条执行）
+学生老师 = 所选课程的授课教师（通过选课表关联，可多个）
 依赖：common.db.Database
 """
 from com.wanhe.common.db import Database
 
 
 class StudentModel:
-    """学生表（含选老师、分班）数据访问"""
+    """学生表（含分班）数据访问"""
 
     def _base_sql(self):
         """
-        学生列表基础 SQL（含关联班级名、教师名、选课数子查询）
+        学生列表基础 SQL（含关联班级名、授课教师名、选课数子查询）
         :return: (sql, params)：sql 不含 WHERE/ORDER/LIMIT，params 为空列表供追加
         """
         sql = (
-            "SELECT s.*, c.name AS class_name, t.name AS teacher_name, "
+            "SELECT s.*, c.name AS class_name, "
+            "       (SELECT GROUP_CONCAT(DISTINCT t2.name SEPARATOR '、') "
+            "        FROM student_course sc2 "
+            "        JOIN courses c2 ON sc2.course_id = c2.id "
+            "        LEFT JOIN teachers t2 ON c2.teacher_id = t2.id "
+            "        WHERE sc2.student_id = s.id) AS teacher_names, "
             "       (SELECT COUNT(*) FROM student_course sc "
             "        WHERE sc.student_id = s.id) AS course_count "
             "FROM students s "
             "LEFT JOIN classes c ON s.class_id = c.id "
-            "LEFT JOIN teachers t ON s.teacher_id = t.id "
         )
         params = []
         return sql, params
 
     def get_all(self, keyword=''):
         """
-        查询所有学生（关联班级名、教师名、选课数），可按姓名模糊查询
+        查询所有学生（关联班级名、授课教师名、选课数），可按姓名模糊查询
         :param keyword: 姓名关键字（可选，为空返回全部）
         :return: 学生行字典列表
         """
@@ -73,29 +78,33 @@ class StudentModel:
 
     def get_by_id(self, student_id):
         """
-        按 ID 查询学生（含班级名、教师名）
+        按 ID 查询学生（含班级名、授课教师名）
         :param student_id: 学生 ID
         :return: 学生行 dict；不存在返回 None
         """
         with Database() as db:
             return db.query_one(
-                "SELECT s.*, c.name AS class_name, t.name AS teacher_name "
+                "SELECT s.*, c.name AS class_name, "
+                "       (SELECT GROUP_CONCAT(DISTINCT t2.name SEPARATOR '、') "
+                "        FROM student_course sc2 "
+                "        JOIN courses c2 ON sc2.course_id = c2.id "
+                "        LEFT JOIN teachers t2 ON c2.teacher_id = t2.id "
+                "        WHERE sc2.student_id = s.id) AS teacher_names "
                 "FROM students s "
                 "LEFT JOIN classes c ON s.class_id = c.id "
-                "LEFT JOIN teachers t ON s.teacher_id = t.id "
                 "WHERE s.id = %s", (student_id,)
             )
 
-    def create(self, name, gender, age, grade, class_id, teacher_id, enrollment_date):
+    def create(self, name, gender, age, grade, class_id, enrollment_date):
         """
         新增学生
         :return: 新学生自增 ID
         """
         with Database() as db:
             return db.insert(
-                "INSERT INTO students (name, gender, age, grade, class_id, teacher_id, enrollment_date) "
-                "VALUES (%s, %s, %s, %s, %s, %s, %s)",
-                (name, gender, age, grade, class_id, teacher_id, enrollment_date)
+                "INSERT INTO students (name, gender, age, grade, class_id, enrollment_date) "
+                "VALUES (%s, %s, %s, %s, %s, %s)",
+                (name, gender, age, grade, class_id, enrollment_date)
             )
 
     def update(self, student_id, name, gender, age, grade):
@@ -110,19 +119,25 @@ class StudentModel:
             )
 
     def change_class(self, student_id, class_id):
-        """分班：把学生安排到指定班级"""
+        """
+        分班：只安排学生到指定班级
+        （学生老师 = 所选课程授课教师，与分班无关）
+        """
         with Database() as db:
             return db.execute(
                 "UPDATE students SET class_id=%s WHERE id=%s",
                 (class_id, student_id)
             )
 
-    def change_teacher(self, student_id, teacher_id):
-        """选老师：把学生分配给指定教师"""
+    def clear_class(self, student_id):
+        """
+        清空学生的分班（年级变更导致班级不匹配时，保持学生年级与班级一致）
+        :return: 受影响行数
+        """
         with Database() as db:
             return db.execute(
-                "UPDATE students SET teacher_id=%s WHERE id=%s",
-                (teacher_id, student_id)
+                "UPDATE students SET class_id = NULL WHERE id = %s",
+                (student_id,)
             )
 
     def delete(self, student_id):

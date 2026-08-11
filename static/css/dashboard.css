@@ -127,6 +127,10 @@ tbody tr:last-child td { border-bottom: none; }
     background: #fff;
     width: 460px;
     max-width: 92vw;
+    max-height: 90vh;             /* 内容超高时限制高度，由 body 滚动，保证底部按钮可达 */
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
     border-radius: 8px;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
     padding: 20px 24px 0;
@@ -135,6 +139,7 @@ tbody tr:last-child td { border-bottom: none; }
     display: flex;
     justify-content: space-between;
     align-items: center;
+    flex-shrink: 0;
     margin-bottom: 16px;
     font-size: 16px;
     font-weight: 600;
@@ -149,12 +154,14 @@ tbody tr:last-child td { border-bottom: none; }
     cursor: pointer;
 }
 .modal-close:hover { color: #333; }
-.modal-body { margin-bottom: 16px; }
+.modal-body { margin-bottom: 16px; flex: 1 1 auto; overflow-y: auto; min-height: 0; }
 .modal-body .field { margin-bottom: 14px; }
+.modal-body .field.hint { font-size: 12px; color: #999; margin-top: -8px; }
 .modal-footer {
     display: flex;
     justify-content: flex-end;
     gap: 10px;
+    flex-shrink: 0;
     padding: 12px 0 20px;
     border-top: 1px solid #f0f0f0;
 }
@@ -171,6 +178,22 @@ tbody tr:last-child td { border-bottom: none; }
 .score-row .score-stu { font-size: 14px; color: #333; }
 .score-row input { width: 120px; height: 32px; padding: 0 10px; border: 1px solid #e5e7eb; border-radius: 6px; }
 .muted { color: #aaa; }
+
+/* ===== 教师详情弹框 ===== */
+.detail-table th { width: 90px; background: #fafafa; color: #666; font-weight: 500; }
+.detail-table td { color: #333; }
+.detail-block { margin-top: 16px; }
+.detail-block h4 { margin-bottom: 8px; font-size: 14px; color: #333; font-weight: 600; }
+.detail-block ul { list-style: none; }
+.detail-block li {
+    padding: 6px 10px;
+    margin-bottom: 6px;
+    background: #fafafa;
+    border-radius: 6px;
+    font-size: 14px;
+    color: #333;
+    border-left: 3px solid #1890ff;
+}
 
 /* ===== 分页 ===== */
 .pagination {

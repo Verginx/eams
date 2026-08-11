@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>EAMS 教务管理后台</title>
     <link rel="stylesheet" href="/static/css/common.css">
-    <link rel="stylesheet" href="/static/css/dashboard.css">
+    <link rel="stylesheet" href="/static/css/dashboard.css?v=2">
 </head>
 <body>
     <div class="layout">
@@ -73,7 +73,7 @@
                 <!-- 学生管理面板 -->
                 <div id="students" class="panel">
                     <div class="card">
-                        <h2>学生管理（含分班、选老师）</h2>
+                        <h2>学生管理（含分班、选课）</h2>
                         <div class="toolbar">
                             <input id="stuKeyword" placeholder="按姓名搜索">
                             <button class="btn" onclick="searchStudents()">查询</button>
@@ -81,7 +81,7 @@
                             <button class="btn btn-blue" onclick="openStudentModal('add')">新增学生</button>
                         </div>
                         <table>
-                            <thead><tr><th>ID</th><th>姓名</th><th>性别</th><th>年龄</th><th>年级</th><th>班级</th><th>老师</th><th>选课数</th><th>操作</th></tr></thead>
+                            <thead><tr><th>ID</th><th>姓名</th><th>性别</th><th>年龄</th><th>年级</th><th>班级</th><th>授课教师</th><th>选课数</th><th>操作</th></tr></thead>
                             <tbody id="studentBody"></tbody>
                         </table>
                         <div class="pagination" id="stuPager"></div>
@@ -99,7 +99,7 @@
                             <button class="btn btn-blue" onclick="openTeacherModal('add')">新增教师</button>
                         </div>
                         <table>
-                            <thead><tr><th>ID</th><th>姓名</th><th>性别</th><th>年龄</th><th>科目</th><th>电话</th><th>职称</th><th>基本工资</th><th>课时费</th><th>奖金</th><th>授课</th><th>班级</th><th>学生</th><th>操作</th></tr></thead>
+                            <thead><tr><th>ID</th><th>姓名</th><th>性别</th><th>年龄</th><th>科目</th><th>学历</th><th>入职日期</th><th>电话</th><th>职称</th><th>基本工资</th><th>课时费（总额）</th><th>奖金</th><th>学生</th><th>操作</th></tr></thead>
                             <tbody id="teacherBody"></tbody>
                         </table>
                     </div>
@@ -170,6 +170,7 @@
             <div id="modalBody" class="modal-body"></div>
             <div class="modal-footer">
                 <button class="btn btn-blue" id="modalOk">确定</button>
+                <button class="btn" id="modalUndo" onclick="closeModal()" style="display:none">撤销</button>
                 <button class="btn" onclick="closeModal()">取消</button>
             </div>
         </div>

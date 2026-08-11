@@ -31,14 +31,13 @@ def register(data: RegisterRequest):
         logger.warning("注册失败 用户名已存在:%s", data.username)
         raise HTTPException(status_code=400, detail="用户名已存在")
 
-    # 2. 创建学生记录（初始未分班、未选老师）
+    # 2. 创建学生记录（初始未分班、未选课）
     student_id = StudentModel().create(
         name=data.name,
         gender=data.gender,
         age=data.age,
         grade='高一',
         class_id=None,
-        teacher_id=None,
         enrollment_date='2025-09-01',
     )
 

@@ -128,6 +128,35 @@ class StudentCourseModel:
                 (student_id, course_id)
             )
 
+    def count_by_student(self, student_id):
+        """
+        查询某学生已选课程数量（用于"每个学生至少选 1 门"约束）
+        :param student_id: 学生 ID
+        :return: 已选课程数
+        """
+        with Database() as db:
+            return db.query_one(
+                "SELECT COUNT(*) AS cnt FROM student_course WHERE student_id=%s",
+                (student_id,)
+            )["cnt"]
+
+    def students_with_only_this_course(self, course_id):
+        """
+        查询"只选了这一门课程"的学生（用于删除课程时防学生无课可选）
+        :param course_id: 课程 ID
+        :return: [{student_id, student_name}, ...]
+        """
+        with Database() as db:
+            return db.query_all(
+                "SELECT sc.student_id, s.name AS student_name "
+                "FROM student_course sc "
+                "JOIN students s ON sc.student_id = s.id "
+                "WHERE sc.course_id = %s "
+                "  AND (SELECT COUNT(*) FROM student_course sc2 "
+                "       WHERE sc2.student_id = sc.student_id) = 1",
+                (course_id,)
+            )
+
     def unselect(self, student_id, course_id):
         """
         学生退课

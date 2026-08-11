@@ -33,6 +33,15 @@ def get_teacher(teacher_id: int):
     return success(teacher)
 
 
+@router.get("/detail/{teacher_id}")  # 路由装饰器：注册 GET 查询接口
+def get_teacher_detail(teacher_id: int):
+    """查：教师详情（基本信息 + 授课课程 + 班主任班级 + 选其课程的学生）"""
+    detail = TeacherModel().get_detail(teacher_id)
+    if detail is None:
+        raise HTTPException(status_code=404, detail="教师不存在")
+    return success(detail)
+
+
 @router.post("/add")  # 路由装饰器：注册 POST 新增接口
 def add_teacher(data: TeacherCreate):
     """增：新增教师"""
@@ -46,6 +55,9 @@ def add_teacher(data: TeacherCreate):
         base_salary=data.base_salary,
         class_fee=data.class_fee,
         bonus=data.bonus,
+        education=data.education,
+        hire_date=data.hire_date,
+        remark=data.remark,
     )
     logger.info("新增教师 id:%s 姓名:%s", new_id, data.name)
     return success({"id": new_id}, msg="新增成功")
@@ -58,7 +70,7 @@ def update_teacher(teacher_id: int, data: TeacherUpdate):
         raise HTTPException(status_code=404, detail="教师不存在")
     TeacherModel().update(
         teacher_id, data.name, data.gender, data.age, data.subject, data.phone, data.zhicheng_id,
-        data.base_salary, data.class_fee, data.bonus
+        data.base_salary, data.class_fee, data.bonus, data.education, data.hire_date, data.remark
     )
     logger.info("修改教师 id:%s", teacher_id)
     return success(msg="修改成功")

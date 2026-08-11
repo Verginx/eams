@@ -21,6 +21,9 @@ class TeacherCreate(BaseModel):
     base_salary: Optional[float] = Field(None, ge=0, description="基本工资（月薪，可选）")
     class_fee: Optional[float] = Field(None, ge=0, description="课时费（每课时，可选）")
     bonus: Optional[float] = Field(None, ge=0, description="奖金/津贴（可选）")
+    education: Optional[str] = Field(None, max_length=20, description="学历（可选）")
+    hire_date: Optional[str] = Field(None, description="入职日期 YYYY-MM-DD（可选）")
+    remark: Optional[str] = Field(None, max_length=255, description="备注（可选）")
 
 
 class TeacherUpdate(BaseModel):
@@ -34,3 +37,6 @@ class TeacherUpdate(BaseModel):
     base_salary: Optional[float] = Field(None, ge=0, description="基本工资（月薪，可选）")
     class_fee: Optional[float] = Field(None, ge=0, description="课时费（每课时，可选）")
     bonus: Optional[float] = Field(None, ge=0, description="奖金/津贴（可选）")
+    education: Optional[str] = Field(None, max_length=20, description="学历（可选）")
+    hire_date: Optional[str] = Field(None, description="入职日期 YYYY-MM-DD（可选）")
+    remark: Optional[str] = Field(None, max_length=255, description="备注（可选）")

@@ -62,9 +62,14 @@ def update_course(course_id: int, data: CourseUpdate):
 
 @router.delete("/del/{course_id}")  # 路由装饰器：注册 DELETE 删除接口
 def delete_course(course_id: int):
-    """删：删除课程（连带清理选课记录"""
+    """删：删除课程（连带清理选课记录；若会使某学生降到 0 门课程则阻止删除）"""
     if CourseModel().get_by_id(course_id) is None:
         raise HTTPException(status_code=404, detail="课程不存在")
+    only_students = StudentCourseModel().students_with_only_this_course(course_id)
+    if only_students:
+        names = "、".join(s["student_name"] for s in only_students)
+        raise HTTPException(status_code=400,
+                            detail=f"该课程是{names}等学生的唯一课程，删除后他们将无课可选，禁止删除")
     CourseModel().delete(course_id)
     logger.info("删除课程 id:%s", course_id)
     return success(msg="删除成功")
@@ -104,9 +109,11 @@ def select_course(student_id: int, data: CourseSelect):
 
 @router.delete("/unselect/{student_id}")  # 路由装饰器：注册 DELETE 删除接口
 def unselect_course(student_id: int, course_id: int):
-    """退课：学生退掉一门课程（course_id 走 query 参数，避免 DELETE 带 body 的兼容性问题）"""
+    """退课：学生退掉一门课程（course_id 走 query 参数，避免 DELETE 带 body 的兼容性问题；不能退到 0 门）"""
     if not StudentCourseModel().is_selected(student_id, course_id):
         raise HTTPException(status_code=400, detail="未选该课程，无法退课")
+    if StudentCourseModel().count_by_student(student_id) <= 1:
+        raise HTTPException(status_code=400, detail="每个学生至少选择一门课程，不能退掉最后一门课程")
     StudentCourseModel().unselect(student_id, course_id)
     logger.info("学生退课 学生id:%s 课程%s", student_id, course_id)
     return success(msg="退课成功")

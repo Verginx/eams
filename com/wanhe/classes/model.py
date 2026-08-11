@@ -66,5 +66,21 @@ class ClassModel:
         :return: 受影响行数
         """
         with Database() as db:
-            db.execute("UPDATE students SET class_id = NULL WHERE class_id = %s", (class_id,))
+            db.execute(
+                "UPDATE students SET class_id = NULL WHERE class_id = %s",
+                (class_id,)
+            )
             return db.execute("DELETE FROM classes WHERE id = %s", (class_id,))
+
+    def unbind_mismatched_students(self, class_id, new_grade):
+        """
+        班级改年级后，清空该班中年级与班级不匹配学生的分班
+        （班级年级固定，学生年级与班级年级须一致）
+        :return: 受影响行数
+        """
+        with Database() as db:
+            return db.execute(
+                "UPDATE students SET class_id = NULL "
+                "WHERE class_id = %s AND grade <> %s",
+                (class_id, new_grade)
+            )

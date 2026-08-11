@@ -2,7 +2,7 @@
 """
 EAMS 学校教务管理系统 - 程序入口
 
-功能：学生/教师管理、学生选课选老师、学生分班、学生自主注册登录
+功能：学生/教师管理、学生选课、学生分班、学生自主注册登录
 运行（Windows 本地）：
   开发：uvicorn main:app --reload
   也可：python main.py
@@ -30,7 +30,7 @@ from com.wanhe.common.exceptions import register_exception_handlers
 # 实例化 FastAPI 主程序
 app = FastAPI(
     title="EAMS 学校教务管理系统",
-    description="学生/教师管理、选课选老师、分班、注册登录一体化 API",
+    description="学生/教师管理、选课、分班、注册登录一体化 API",
     version="1.0.0",
 )
 

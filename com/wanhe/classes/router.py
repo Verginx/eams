@@ -46,11 +46,20 @@ def add_class(data: ClassCreate):
 
 @router.put("/update/{class_id}")  # 路由装饰器：注册 PUT 修改接口
 def update_class(class_id: int, data: ClassUpdate):
-    """改：修改班级信息"""
-    if ClassModel().get_by_id(class_id) is None:
+    """改：修改班级信息（改年级时清理年级不匹配学生的分班）"""
+    cls = ClassModel().get_by_id(class_id)
+    if cls is None:
         raise HTTPException(status_code=404, detail="班级不存在")
+    if data.head_teacher_id and TeacherModel().get_by_id(data.head_teacher_id) is None:
+        raise HTTPException(status_code=404, detail="班主任教师不存在")
+    grade_changed = cls["grade"] != data.grade
     ClassModel().update(class_id, data.name, data.grade, data.head_teacher_id)
-    logger.info("修改班级 id:%s", class_id)
+    if grade_changed:
+        ClassModel().unbind_mismatched_students(class_id, data.grade)
+        logger.info("修改班级 id:%s 年级变更 %s→%s，已清空年级不匹配学生的分班",
+                    class_id, cls["grade"], data.grade)
+    else:
+        logger.info("修改班级 id:%s", class_id)
     return success(msg="修改成功")
 
 
