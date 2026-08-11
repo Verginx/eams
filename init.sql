@@ -188,6 +188,52 @@ INSERT INTO zhicheng (name, level, description) VALUES
     ('副高级', 3, '副高级职称，承担主干课程与科研项目'),
     ('高级', 4, '高级职称，主持学科建设与高水平课题');
 
+-- ============================================================
+-- 演示补充数据（覆盖各功能演示路径）
+-- ============================================================
+
+-- 教师：刘老师（无授课课程，演示教师统计边缘情况）
+INSERT INTO teachers (name, gender, age, subject, phone, zhicheng_id, base_salary, class_fee, bonus, education, hire_date, remark) VALUES
+    ('刘老师', '男', 29, '地理', '13800138007', 1, 7000.00, 50.00, 1000.00, '本科', '2021-09-01', '暂无授课课程，空班级测试班班主任');
+
+-- 班级：空班级测试（无学生，演示空班统计）
+INSERT INTO classes (name, grade, head_teacher_id) VALUES
+    ('空班级测试', '高一', 7);
+
+-- 学生：回收站演示（已删除）+ 未分班演示（class_id 为空）
+INSERT INTO students (name, gender, age, grade, class_id, teacher_id, enrollment_date, is_deleted, delete_time, delete_operator) VALUES
+    ('测试回收站', '男', 15, '高一', 1, NULL, '2025-09-01', 1, '2026-08-10 10:00:00', 'admin'),
+    ('未分班测试', '女', 15, '高一', NULL, NULL, '2025-09-01', 0, NULL, NULL);
+
+-- 张三选老师演示（students.teacher_id 直连所选教师）
+UPDATE students SET teacher_id = 1 WHERE id = 1;
+
+-- 课程：未开课 / 线上 / 满员演示
+INSERT INTO courses (name, credit, teacher_id, status, mode, max_students) VALUES
+    ('选修-未开课', 2, 1, '未开课', '线下', 20),
+    ('选修-线上', 2, 2, '开课', '线上', 20),
+    ('满员课程', 2, 1, '开课', '线下', 3);
+
+-- 满员课程选满 3 人（enrolled = max_students = 3）；未分班测试学生选 1 门（满足"每生至少 1 门"）
+INSERT INTO student_course (student_id, course_id) VALUES
+    (1, 9), (2, 9), (3, 9),
+    (20, 8);
+
+-- 成绩演示：为部分选课记录登记成绩（0-100 区间，供成绩登记/展示）
+UPDATE student_course SET score = 92 WHERE student_id = 1 AND course_id = 1;
+UPDATE student_course SET score = 88 WHERE student_id = 1 AND course_id = 2;
+UPDATE student_course SET score = 85 WHERE student_id = 2 AND course_id = 1;
+UPDATE student_course SET score = 90 WHERE student_id = 3 AND course_id = 4;
+UPDATE student_course SET score = 87 WHERE student_id = 13 AND course_id = 1;
+UPDATE student_course SET score = 95 WHERE student_id = 16 AND course_id = 2;
+UPDATE student_course SET score = 78 WHERE student_id = 10 AND course_id = 5;
+UPDATE student_course SET score = 89 WHERE student_id = 14 AND course_id = 2;
+
+-- 学生用户账号（演示学生登录；密码 Student@123 符合强度规则：含大小写字母+数字+特殊字符）
+INSERT INTO users (username, password, role, student_id) VALUES
+    ('zhangsan', 'Student@123', 'student', 1),
+    ('lisi', 'Student@123', 'student', 2);
+
 -- 管理员账号（密码 admin123，明文存储，教学演示）
 INSERT INTO users (username, password, role) VALUES
     ('admin', 'admin123', 'admin');
